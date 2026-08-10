@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only visual redesign verification of /registo page. Tested at viewport 950x1050 as requested. All 8 PanelBlocks (Situação, Tipo de finalização, Zona, Distância bola-baliza, Seguimento, Técnica utilizada, Tomada de decisão, Avaliação do treinador) render in 2-column layout with no horizontal scroll (docW=950, clientW=950). Selected value shows in header (right side, petróleo text) for every panel: Balão, Corredor lateral esquerdo, 0-2 m, Canto superior esquerdo, Defesa com as pernas, Lateral. Selected tiles are yellow (rgb 244,196,48 / #F4C430). goal-tornozelos testid confirmed absent. Avaliação has 4 buttons in order cinzenta/vermelho/amarelo/verde; action-feedback field appears for both amarelo and vermelho. Tomada de decisão works as multi-select. add-action-btn adds row (action-row-0..2) and clears the form (headers reset to 'Sem seleção'). Offensive counters increment on off-add-passes_ok (0→2) and clamp at 0 on off-minus (not going negative). save-report-btn appears once >=1 action exists. Base de Dados still loads goalkeeper profile with add-strong-btn/add-weak-btn and charts working.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/registo Zona panel", "issues": ["The 5-column CourtZone renders with vertical labels that appear slightly clipped/rotated near the sidelines at 950px width — labels are readable but the outermost vertical labels (Lateral esq. / Lateral dir.) are close to the goal pads. Not blocking, purely cosmetic."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Registo.js is 300 lines with a lot of inline JSX and inline styles — consider extracting the action-block into its own component to keep the page under 200 lines and improve maintainability.",
+    "In PanelBlock the selected text has max-w-[55%] with truncate; some longer values (e.g. 'Corredor lateral esquerdo') are truncated on narrow panels. Consider wrapping or reducing font-size in header instead of truncating.",
+    "Slugified data-testids include non-ASCII characters (sel-situacao-balão, sel-tecnica-defesa-com-as-pernas with accents) which works but can be brittle in some tools — consider unicode-normalising to ASCII in slug()."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100%"},
+  "test_credentials": "joaocoelhofutsal@gmail.com / leoes2011 (admin)",
+  "seed_data_creation": "Created 3 test actions on a temporary in-memory form (not saved to DB). No persistent test data was created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Registo visual redesign fully verified at viewport 950x1050 in iteration_3. Backend was untouched and last fully green in iteration_2 — reuse /app/backend/tests/backend_test.py if backend testing needed. Auth is httpOnly-cookie based; login via input[type=email]/password + button matching 'Entrar/Login'.",
+  "rca of the issue": "N/A — no issues found."
+}

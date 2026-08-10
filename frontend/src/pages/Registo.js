@@ -5,16 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { SelectGrid } from "@/components/SelectGrid";
+import { PanelBlock, TileGrid, Tile, slug } from "@/components/Panels";
 import { CourtZone, CourtDistance, GoalTarget } from "@/components/VisualPickers";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  SITUACOES, ZONAS, DISTANCIAS, TECNICAS, DECISOES, SEGUIMENTOS,
-  AVALIACOES, OFFENSIVE_BUTTONS, EMPTY_ACTION, EMPTY_OFFENSIVE,
+  SITUACOES, TECNICAS, DECISOES, AVALIACOES, OFFENSIVE_BUTTONS,
+  EMPTY_ACTION, EMPTY_OFFENSIVE, SIT_SHORT, SEG_SHORT,
 } from "@/lib/constants";
 import { Plus, Trash2, Save, Minus } from "lucide-react";
+
+const AVAL_ORDER = ["cinzenta", "vermelho", "amarelo", "verde"];
 
 const Section = ({ title, children }) => (
   <section className="rounded-xl border border-gray-200 p-2.5 sm:p-3 bg-white space-y-2.5">
@@ -49,6 +51,8 @@ export default function Registo() {
     }
   };
 
+  const setF = (k, v) => setAction((a) => ({ ...a, [k]: v }));
+
   const addAction = () => {
     if (!action.situation && !action.technique) {
       toast.error("Preenche pelo menos a Situação ou a Técnica da ação.");
@@ -65,6 +69,7 @@ export default function Registo() {
   const bumpOff = (k, d) => setOffensive((o) => ({ ...o, [k]: Math.max(0, o[k] + d) }));
 
   const needFeedback = action.evaluation === "amarelo" || action.evaluation === "vermelho";
+  const avalLabel = AVALIACOES.find((x) => x.key === action.evaluation)?.label;
 
   const saveReport = async () => {
     let goalkeeper_id = gkId;
@@ -86,6 +91,11 @@ export default function Registo() {
       toast.error(formatApiErrorDetail(err.response?.data?.detail));
     } finally { setSaving(false); }
   };
+
+  const seg = (opt) => (
+    <Tile testid={`sel-seguimento-${slug(opt)}`} active={action.followup === opt}
+      onClick={() => setF("followup", action.followup === opt ? "" : opt)}>{SEG_SHORT[opt]}</Tile>
+  );
 
   return (
     <div className="space-y-3 max-w-5xl mx-auto pb-28" data-testid="registo-page">
@@ -126,70 +136,95 @@ export default function Registo() {
       </Section>
 
       {/* Action block */}
-      <div id="action-block" className="rounded-xl border-2 border-[#0C3B1E]/25 p-2.5 sm:p-3 bg-white space-y-3">
-        <h2 className="font-cond text-lg font-bold uppercase text-[#0C3B1E]">Nova ação de jogo</h2>
-
-        <SelectGrid label="Situação" options={SITUACOES} value={action.situation} testid="sel-situacao"
-          onChange={(v) => setAction({ ...action, situation: v })} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <CourtZone value={action.zone} onChange={(v) => setAction({ ...action, zone: v })} />
-            <SelectGrid label="Zona (rápido)" options={ZONAS} value={action.zone} testid="sel-zona"
-              onChange={(v) => setAction({ ...action, zone: v })} cols="grid-cols-2 sm:grid-cols-3" />
+      <div id="action-block" className="rounded-xl border border-gray-200 p-2.5 sm:p-3 bg-white space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Nova ação</div>
+            <div className="font-cond text-xl font-extrabold uppercase text-[#0C3B1E] leading-none">{general.goalkeeper_name || "Guarda-redes"}</div>
           </div>
-          <div className="space-y-2">
-            <CourtDistance value={action.distance} onChange={(v) => setAction({ ...action, distance: v })} />
-            <SelectGrid label="Distância (rápido)" options={DISTANCIAS} value={action.distance} testid="sel-distancia"
-              onChange={(v) => setAction({ ...action, distance: v })} cols="grid-cols-2 sm:grid-cols-3" />
-          </div>
+          <Button onClick={addAction} data-testid="add-action-btn"
+            className="h-10 px-4 bg-[#0F3B43] hover:bg-[#0b2d33] text-white font-bold uppercase tracking-wide">
+            <Plus className="mr-1.5" size={16} /> Adicionar ação
+          </Button>
         </div>
 
-        <GoalTarget value={action.finish_type} onChange={(v) => setAction({ ...action, finish_type: v })} />
+        <div className="space-y-1">
+          <Label className="text-[11px] uppercase tracking-wide text-[#0F3B43] font-bold">Notas / observações</Label>
+          <Textarea value={action.notes} rows={2} data-testid="action-notes"
+            onChange={(e) => setF("notes", e.target.value)} placeholder="Texto livre sobre a ação" />
+        </div>
 
-        <SelectGrid label="Técnica utilizada" options={TECNICAS} value={action.technique} testid="sel-tecnica"
-          onChange={(v) => setAction({ ...action, technique: v })} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
-        <SelectGrid label="Tomada de decisão (várias)" options={DECISOES} value={action.decisions} multi testid="sel-decisao"
-          onChange={(v) => setAction({ ...action, decisions: v })} cols="grid-cols-2 sm:grid-cols-3" />
-        <SelectGrid label="Seguimento" options={SEGUIMENTOS} value={action.followup} testid="sel-seguimento"
-          onChange={(v) => setAction({ ...action, followup: v })} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <PanelBlock title="Situação" selected={SIT_SHORT[action.situation] || action.situation}>
+            <TileGrid options={SITUACOES} value={action.situation} onChange={(v) => setF("situation", v)}
+              testid="sel-situacao" cols="grid-cols-2" labelMap={SIT_SHORT} />
+          </PanelBlock>
 
-        {/* Evaluation */}
-        <div className="space-y-1.5">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0F3B43]">Avaliação do treinador</div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-            {AVALIACOES.map((av) => (
-              <button type="button" key={av.key} data-testid={`sel-avaliacao-${av.key}`}
-                onClick={() => setAction({ ...action, evaluation: action.evaluation === av.key ? "" : av.key })}
-                className="select-tile min-h-[34px] rounded-md border-2 font-bold uppercase text-[11px] sm:text-xs flex items-center justify-center"
-                style={{
-                  backgroundColor: action.evaluation === av.key ? av.color : "#fff",
-                  borderColor: av.color, color: action.evaluation === av.key ? "#fff" : av.color,
-                }}>
-                {av.label}
-              </button>
-            ))}
-          </div>
+          <PanelBlock title="Tipo de finalização" selected={action.finish_type}>
+            <GoalTarget value={action.finish_type} onChange={(v) => setF("finish_type", v)} />
+          </PanelBlock>
+
+          <PanelBlock title="Zona" selected={action.zone}>
+            <CourtZone value={action.zone} onChange={(v) => setF("zone", v)} />
+          </PanelBlock>
+
+          <PanelBlock title="Distância bola-baliza" selected={action.distance}>
+            <CourtDistance value={action.distance} onChange={(v) => setF("distance", v)} />
+          </PanelBlock>
+
+          <PanelBlock title="Seguimento" selected={SEG_SHORT[action.followup] || action.followup}>
+            <div className="space-y-1.5">
+              {seg("Bola saiu pela linha final")}
+              <div className="grid grid-cols-3 gap-1.5">
+                {seg("GR recuperou")}{seg("Equipa recuperou")}{seg("Sobrou no corredor central")}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {seg("Bola no adversário")}{seg("Golo do adversário")}
+              </div>
+              {seg("Bola saiu pela lateral")}
+            </div>
+          </PanelBlock>
+
+          <PanelBlock title="Técnica utilizada" selected={action.technique}>
+            <TileGrid options={TECNICAS} value={action.technique} onChange={(v) => setF("technique", v)}
+              testid="sel-tecnica" cols="grid-cols-3" />
+          </PanelBlock>
+
+          <PanelBlock title="Tomada de decisão" selected={(action.decisions || []).join(", ")}>
+            <TileGrid options={DECISOES} value={action.decisions} multi onChange={(v) => setF("decisions", v)}
+              testid="sel-decisao" cols="grid-cols-1" />
+          </PanelBlock>
+
+          <PanelBlock title="Avaliação do treinador" selected={avalLabel}>
+            <div className="space-y-1.5">
+              {AVAL_ORDER.map((key) => {
+                const av = AVALIACOES.find((x) => x.key === key);
+                const sel = action.evaluation === key;
+                const dark = key === "amarelo" || key === "cinzenta";
+                return (
+                  <button type="button" key={key} data-testid={`sel-avaliacao-${key}`}
+                    onClick={() => setF("evaluation", sel ? "" : key)}
+                    className="w-full min-h-[34px] rounded-lg font-bold uppercase text-[12px] transition-all"
+                    style={{
+                      background: av.color, color: dark ? "#1f2937" : "#fff",
+                      outline: sel ? "3px solid #0C3B1E" : "none", outlineOffset: "1px",
+                      opacity: action.evaluation && !sel ? 0.55 : 1,
+                    }}>
+                    {av.label}
+                  </button>
+                );
+              })}
+            </div>
+          </PanelBlock>
         </div>
 
         {needFeedback && (
           <div className="space-y-1">
             <Label className="text-red-600 text-xs">Feedback breve (para {action.evaluation})</Label>
             <Input value={action.feedback} data-testid="action-feedback"
-              onChange={(e) => setAction({ ...action, feedback: e.target.value })} placeholder="O que melhorar" />
+              onChange={(e) => setF("feedback", e.target.value)} placeholder="O que melhorar" />
           </div>
         )}
-
-        <div className="space-y-1">
-          <Label className="text-xs">Notas / observações da ação</Label>
-          <Textarea value={action.notes} rows={2} data-testid="action-notes"
-            onChange={(e) => setAction({ ...action, notes: e.target.value })} />
-        </div>
-
-        <Button onClick={addAction} data-testid="add-action-btn"
-          className="w-full h-11 bg-[#0F3B43] hover:bg-[#0b2d33] text-white font-bold uppercase tracking-wide">
-          <Plus className="mr-2" size={18} /> Adicionar ação
-        </Button>
       </div>
 
       {/* Actions TABLE */}
@@ -254,7 +289,7 @@ export default function Registo() {
       {actions.length > 0 && (
         <div className="sticky bottom-0 bg-white/95 backdrop-blur py-3 border-t border-gray-200">
           <Button onClick={saveReport} disabled={saving} data-testid="save-report-btn"
-            className="w-full h-12 bg-[#0C3B1E] hover:bg-[#0a3018] text-white font-bold uppercase tracking-wide">
+            className="w-full h-11 bg-[#0C3B1E] hover:bg-[#0a3018] text-white font-bold uppercase tracking-wide">
             <Save className="mr-2" size={18} /> {saving ? "A guardar..." : "Guardar relatório + PDF"}
           </Button>
         </div>

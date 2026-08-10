@@ -1,69 +1,71 @@
-import { cn } from "@/lib/utils";
-import { ZONAS, ZONA_SHORT, DISTANCIAS, GOAL_GRID } from "@/lib/constants";
+import { ZONAS, ZONA_SHORT, DISTANCIAS, GOAL_GRID, GOAL_SHORT } from "@/lib/constants";
 
-const slug = (s) => s.replace(/\s+/g, "-").toLowerCase();
+const slug = (s) => (s || "").replace(/\s+/g, "-").toLowerCase();
 
 export function CourtZone({ value, onChange }) {
   return (
-    <div className="space-y-1.5">
-      <div className="text-xs font-bold uppercase tracking-[0.15em] text-[#0F3B43]">Zona (campo)</div>
-      <div className="relative rounded-lg overflow-hidden border-2 border-[#0C3B1E]/40" style={{ background: "#1c7a44" }}>
-        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/50" />
-        <div className="grid grid-cols-5 h-14">
-          {ZONAS.map((z, i) => (
-            <button type="button" key={z} data-testid={`court-zone-${i}`}
-              onClick={() => onChange(value === z ? "" : z)}
-              className={cn("border-r border-white/40 last:border-r-0 text-white text-[10px] font-bold flex items-end justify-center pb-1 transition-colors",
-                value === z ? "bg-[#0C3B1E]/80" : "hover:bg-white/15")}>
+    <div className="relative rounded-lg overflow-hidden h-[118px]">
+      <div className="grid grid-cols-5 h-full gap-1">
+        {ZONAS.map((z, i) => (
+          <button type="button" key={z} data-testid={`court-zone-${i}`}
+            onClick={() => onChange(value === z ? "" : z)}
+            className="relative rounded-md flex items-center justify-center transition-colors"
+            style={{ background: value === z ? "#F4C430" : (i % 2 ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.15)") }}>
+            <span className="text-[10px] font-bold whitespace-nowrap"
+              style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", color: value === z ? "#0C3B1E" : "#fff" }}>
               {ZONA_SHORT[i]}
-            </button>
-          ))}
-        </div>
+            </span>
+          </button>
+        ))}
       </div>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-full border border-white/50" />
+      </div>
+      <div className="pointer-events-none absolute top-1 bottom-1 left-1/2 w-px bg-white/40" />
+      <div className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-white/70 rounded-r" />
+      <div className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-white/70 rounded-l" />
     </div>
   );
 }
 
 export function CourtDistance({ value, onChange }) {
   return (
-    <div className="space-y-1.5">
-      <div className="text-xs font-bold uppercase tracking-[0.15em] text-[#0F3B43]">Distância bola-baliza</div>
-      <div className="rounded-lg overflow-hidden border-2 border-[#0C3B1E]/40" style={{ background: "#1c7a44" }}>
-        <div className="text-center text-[9px] uppercase tracking-widest text-white bg-[#0C3B1E] py-0.5">Baliza</div>
+    <div className="relative rounded-lg overflow-hidden">
+      <div className="text-center text-[9px] uppercase tracking-widest text-[#0C3B1E] bg-white/80 py-0.5 font-bold">Baliza</div>
+      <div className="flex flex-col gap-1 p-1">
         {DISTANCIAS.map((d, i) => (
           <button type="button" key={d} data-testid={`court-dist-${i}`}
             onClick={() => onChange(value === d ? "" : d)}
-            className={cn("w-full border-b border-white/30 last:border-b-0 text-white text-[11px] font-bold py-1 transition-colors",
-              value === d ? "bg-[#0C3B1E]/80" : "hover:bg-white/15")}>
+            className="rounded-md py-1.5 text-[11px] font-bold transition-colors"
+            style={{ background: value === d ? "#F4C430" : "rgba(255,255,255,0.10)", color: value === d ? "#0C3B1E" : "#fff" }}>
             {d}
           </button>
         ))}
       </div>
+      <div className="pointer-events-none absolute top-6 bottom-1 left-1/2 w-px bg-white/25" />
     </div>
   );
 }
 
 export function GoalTarget({ value, onChange }) {
   return (
-    <div className="space-y-1.5">
-      <div className="text-xs font-bold uppercase tracking-[0.15em] text-[#0F3B43]">Tipo de finalização (baliza)</div>
-      <div className="mx-auto w-full max-w-[300px]">
-        <div className="border-[3px] border-[#0C3B1E] border-b-0"
-          style={{ backgroundImage: "repeating-linear-gradient(90deg,#e5e7eb 0 6px,transparent 6px 12px)" }}>
-          {GOAL_GRID.map((row, ri) => (
-            <div key={ri} className="grid grid-cols-3">
-              {row.map((cell) => (
-                <button type="button" key={cell} data-testid={`goal-${slug(cell)}`}
-                  onClick={() => onChange(value === cell ? "" : cell)}
-                  className={cn("aspect-[2/1] border border-[#0C3B1E]/30 text-[9px] font-semibold p-0.5 leading-tight transition-colors",
-                    value === cell ? "bg-[#0C3B1E] text-white" : "bg-white/70 text-[#0C3B1E] hover:bg-[#0C3B1E]/10")}>
-                  {cell}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className="h-1 bg-[#0C3B1E]" />
+    <div className="mx-auto w-full max-w-[330px] rounded-md p-1.5" style={{ background: "#c0392b" }}>
+      <div className="rounded-sm p-1" style={{
+        background: "#2b5aa0",
+        backgroundImage: "repeating-linear-gradient(0deg,rgba(255,255,255,0.22) 0 1px,transparent 1px 13px),repeating-linear-gradient(90deg,rgba(255,255,255,0.22) 0 1px,transparent 1px 13px)",
+      }}>
+        {GOAL_GRID.map((row, ri) => (
+          <div key={ri} className="grid grid-cols-3 gap-1 mb-1 last:mb-0">
+            {row.map((cell) => (
+              <button type="button" key={cell} data-testid={`goal-${slug(cell)}`}
+                onClick={() => onChange(value === cell ? "" : cell)}
+                className="aspect-[5/2] rounded-sm text-[9px] font-bold leading-tight transition-colors flex items-center justify-center px-0.5"
+                style={{ background: value === cell ? "#F4C430" : "rgba(255,255,255,0.14)", color: value === cell ? "#0C3B1E" : "#fff" }}>
+                {GOAL_SHORT[cell] || cell}
+              </button>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -49,7 +49,7 @@ export const EMPTY_OFFENSIVE = {
   passes_ok: 0, passes_err: 0, shots_ok: 0, shots_err: 0, repos_ok: 0, repos_err: 0,
 };
 
-export const ZONA_SHORT = ["Lat. Esq.", "Entre Esq.", "Central", "Entre Dir.", "Lat. Dir."];
+export const ZONA_SHORT = ["Lateral esq.", "Entre cor. esq.", "Corredor central", "Entre cor. dir.", "Lateral dir."];
 
 export const GOAL_GRID = [
   ["Canto superior esquerdo", "Central alta", "Canto superior direito"],
@@ -65,3 +65,24 @@ export const OFFENSIVE_BUTTONS = [
   { key: "repos_ok", label: "Reposição certa", tone: "ok" },
   { key: "repos_err", label: "Reposição errada", tone: "err" },
 ];
+
+export const SIT_SHORT = {
+  "Balão": "Balão", "Remate": "Remate", "Remate após 1x1": "Remate após 1x1",
+  "Remate após 1x1 na ala": "1x1 na ala", "Passe ao 2º poste": "2º poste",
+  "1 contra 1": "1 contra 1", "Cobertura": "Cobertura",
+};
+
+export const GOAL_SHORT = {
+  "Canto superior esquerdo": "Canto sup. esq.", "Central alta": "Central alta",
+  "Canto superior direito": "Canto sup. dir.", "Meia altura esquerda": "Meia esq.",
+  "Meia altura central": "Central meia", "Meia altura direita": "Meia dir.",
+  "Canto inferior esquerdo": "Canto inf. esq.", "Central rasteira": "Central rast.",
+  "Canto inferior direito": "Canto inf. dir.",
+};
+
+export const SEG_SHORT = {
+  "Bola saiu pela linha final": "Linha final", "GR recuperou": "GR recuperou",
+  "Equipa recuperou": "Equipa recuperou", "Sobrou no corredor central": "Corredor central",
+  "Bola no adversário": "Bola no adversário", "Golo do adversário": "Golo adversário",
+  "Bola saiu pela lateral": "Lateral",
+};
