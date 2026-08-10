@@ -13,6 +13,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, FileText, ChevronLeft, Download, Upload } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend,
+} from "recharts";
 
 function StatCard({ label, value }) {
   return (
@@ -20,6 +23,62 @@ function StatCard({ label, value }) {
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="font-cond text-3xl font-extrabold text-[#0C3B1E] mt-1">{value}</div>
     </div>
+  );
+}
+
+const EVAL_HEX = { verde: "#22C55E", amarelo: "#EAB308", vermelho: "#EF4444", cinzenta: "#9CA3AF" };
+const EVAL_LABEL = { verde: "Verde", amarelo: "Amarelo", vermelho: "Vermelho", cinzenta: "Cinzenta" };
+
+function ChartCard({ title, children }) {
+  return (
+    <div className="rounded-xl border border-gray-200 p-4 bg-white">
+      <div className="font-cond font-bold uppercase text-[#0F3B43] mb-2">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function ProfileCharts({ d }) {
+  if (!d) return null;
+  const hasAny = (arr) => arr && arr.some((x) => x.value > 0);
+  const evalData = (d.evaluation || []).filter((x) => x.value > 0)
+    .map((x) => ({ ...x, label: EVAL_LABEL[x.name] || x.name }));
+  const barGroups = [
+    { key: "technique", title: "Técnicas utilizadas" },
+    { key: "followup", title: "Seguimento após defesa" },
+    { key: "zone", title: "Zona do remate" },
+    { key: "distance", title: "Distância bola-baliza" },
+  ];
+  return (
+    <section className="space-y-4" data-testid="profile-charts">
+      <h2 className="font-cond text-2xl font-bold uppercase text-[#0F3B43]">Gráficos</h2>
+      <div className="grid md:grid-cols-2 gap-4">
+        {hasAny(evalData) && (
+          <ChartCard title="Avaliações">
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={evalData} dataKey="value" nameKey="label" cx="50%" cy="50%" outerRadius={80} label>
+                  {evalData.map((e) => <Cell key={e.name} fill={EVAL_HEX[e.name] || "#0C3B1E"} />)}
+                </Pie>
+                <Legend /><Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        )}
+        {barGroups.map((g) => hasAny(d[g.key]) && (
+          <ChartCard key={g.key} title={g.title}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={d[g.key]} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <XAxis type="number" allowDecimals={false} hide />
+                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="value" fill="#0C3B1E" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -122,6 +181,8 @@ export default function BaseDados() {
                 ) : <div className="text-sm text-muted-foreground">Sem base estatística suficiente para tendências.</div>}
               </div>
             </section>
+
+            <ProfileCharts d={profile.distributions} />
 
             <section className="rounded-2xl border border-gray-200 p-5 bg-white space-y-4">
               <h2 className="font-cond text-2xl font-bold uppercase text-[#0F3B43]">Análise do treinador</h2>

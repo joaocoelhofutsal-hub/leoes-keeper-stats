@@ -365,6 +365,23 @@ def compute_profile(reports):
         if fail_pct > 0:
             trends.append(f"Falhou {fail_pct}% dos passes em geral.")
 
+    def dist(items):
+        c = Counter([i for i in items if i])
+        return [{"name": k, "value": v} for k, v in c.most_common()]
+
+    evals = [a.get("evaluation") for a in all_actions]
+    eval_dist = []
+    for key in ["verde", "amarelo", "vermelho", "cinzenta"]:
+        eval_dist.append({"name": key, "value": Counter([e for e in evals if e])[key]})
+
+    distributions = {
+        "evaluation": eval_dist,
+        "technique": dist(techniques),
+        "followup": dist(followups),
+        "zone": dist([a.get("zone") for a in all_actions]),
+        "distance": dist([a.get("distance") for a in all_actions]),
+    }
+
     return {
         "total_reports": total,
         "total_actions": n_actions,
@@ -376,6 +393,7 @@ def compute_profile(reports):
         "top_followup": top_follow,
         "trends": trends,
         "offensive_totals": off,
+        "distributions": distributions,
     }
 
 
