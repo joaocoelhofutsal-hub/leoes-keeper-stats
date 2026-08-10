@@ -86,3 +86,8 @@ export const SEG_SHORT = {
   "Bola no adversário": "Bola no adversário", "Golo do adversário": "Golo adversário",
   "Bola saiu pela lateral": "Lateral",
 };
+
+export const COMPONENTES = [
+  "Velocidade", "Força", "Potência", "Agilidade", "Coordenação", "Reação",
+  "Técnica", "Resistência", "Equilíbrio", "Tomada de decisão", "Deslocamento", "Aquecimento",
+];

@@ -93,17 +93,19 @@ export default function BaseDados() {
   const [confirmDel, setConfirmDel] = useState(null); // {type,id}
   const [spText, setSpText] = useState(""); const [spSrc, setSpSrc] = useState("");
   const [wpText, setWpText] = useState(""); const [wpSrc, setWpSrc] = useState("");
+  const [training, setTraining] = useState([]);
 
   const load = () => api.get("/goalkeepers").then((r) => setGks(r.data)).catch(() => {});
   useEffect(() => { load(); }, []);
 
   const openGk = async (g) => {
     setSelected(g);
-    const [p, r] = await Promise.all([
+    const [p, r, t] = await Promise.all([
       api.get(`/goalkeepers/${g.id}/profile`),
       api.get(`/goalkeepers/${g.id}/reports`),
+      api.get(`/goalkeepers/${g.id}/training`),
     ]);
-    setProfile(p.data); setReports(r.data);
+    setProfile(p.data); setReports(r.data); setTraining(t.data);
   };
 
   const openNew = () => { setEditId(null); setForm({ name: "", team: "" }); setEditOpen(true); };
@@ -246,6 +248,25 @@ export default function BaseDados() {
             </section>
 
             <ProfileCharts d={profile.distributions} />
+
+            <section className="rounded-2xl border border-gray-200 p-5 bg-white" data-testid="training-history">
+              <h2 className="font-cond text-2xl font-bold uppercase text-[#0F3B43] mb-3">Histórico de treino (reação)</h2>
+              {training.length === 0 ? (
+                <div className="text-sm text-muted-foreground">Sem sessões de treino. Vai ao separador "Treino", seleciona este guarda-redes e realiza um teste.</div>
+              ) : (
+                <div className="space-y-2">
+                  {training.map((t) => (
+                    <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-200 text-sm" data-testid={`training-row-${t.id}`}>
+                      <span className="px-2 py-0.5 rounded-full bg-[#0C3B1E]/10 text-[#0C3B1E] font-bold uppercase text-[11px]">{t.mode}</span>
+                      <span>Média <b className="text-[#0C3B1E]">{t.avg_ms}ms</b></span>
+                      <span>Melhor <b className="text-green-600">{t.best_ms}ms</b></span>
+                      <span className="text-muted-foreground">· {t.rounds} sinais · {t.too_soon} cedo demais</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{(t.created_at || "").slice(0, 10)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
 
             <section className="rounded-2xl border border-gray-200 p-5 bg-white space-y-4">
               <h2 className="font-cond text-2xl font-bold uppercase text-[#0F3B43]">Análise do treinador</h2>

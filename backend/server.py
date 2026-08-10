@@ -128,6 +128,29 @@ class ImportPayload(BaseModel):
     reports: List[dict] = []
 
 
+class TrainingIn(BaseModel):
+    goalkeeper_id: Optional[str] = ""
+    goalkeeper_name: Optional[str] = ""
+    mode: str
+    rounds: int = 0
+    avg_ms: int = 0
+    best_ms: int = 0
+    too_soon: int = 0
+
+
+class ExerciseIn(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    components: List[str] = []
+
+
+class TrainingUnitIn(BaseModel):
+    title: str
+    date: Optional[str] = ""
+    notes: Optional[str] = ""
+    exercise_ids: List[str] = []
+
+
 class Action(BaseModel):
     model_config = ConfigDict(extra="allow")
     situation: Optional[str] = ""
@@ -532,6 +555,82 @@ async def insights_general(user: dict = Depends(get_current_user)):
     }
 
 
+# ---------- Training (jogo de reação) ----------
+@api_router.post("/training")
+async def save_training(data: TrainingIn, user: dict = Depends(get_current_user)):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    res = await db.training.insert_one(doc)
+    return {"id": str(res.inserted_id)}
+
+
+@api_router.get("/goalkeepers/{gid}/training")
+async def gk_training(gid: str, user: dict = Depends(get_current_user)):
+    rows = await db.training.find({"goalkeeper_id": gid}).sort("created_at", -1).to_list(200)
+    for r in rows:
+        r["id"] = str(r.pop("_id"))
+    return rows
+
+
+# ---------- Exercises (caderno) ----------
+@api_router.get("/exercises")
+async def list_exercises(component: Optional[str] = None, user: dict = Depends(get_current_user)):
+    q = {"components": component} if component else {}
+    rows = await db.exercises.find(q).sort("title", 1).to_list(1000)
+    for r in rows:
+        r["id"] = str(r.pop("_id"))
+    return rows
+
+
+@api_router.get("/exercises/components")
+async def exercise_components(user: dict = Depends(get_current_user)):
+    vals = await db.exercises.distinct("components")
+    return sorted([v for v in vals if v])
+
+
+@api_router.post("/exercises")
+async def create_exercise(data: ExerciseIn, user: dict = Depends(get_current_user)):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    res = await db.exercises.insert_one(doc)
+    return {"id": str(res.inserted_id), **data.model_dump()}
+
+
+@api_router.put("/exercises/{eid}")
+async def update_exercise(eid: str, data: ExerciseIn, user: dict = Depends(get_current_user)):
+    await db.exercises.update_one({"_id": ObjectId(eid)}, {"$set": data.model_dump()})
+    return {"id": eid, **data.model_dump()}
+
+
+@api_router.delete("/exercises/{eid}")
+async def delete_exercise(eid: str, user: dict = Depends(get_current_user)):
+    await db.exercises.delete_one({"_id": ObjectId(eid)})
+    return {"ok": True}
+
+
+# ---------- Training units ----------
+@api_router.post("/training-units")
+async def create_unit(data: TrainingUnitIn, user: dict = Depends(get_current_user)):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    res = await db.training_units.insert_one(doc)
+    return {"id": str(res.inserted_id)}
+
+
+@api_router.get("/training-units")
+async def list_units(user: dict = Depends(get_current_user)):
+    rows = await db.training_units.find().sort("created_at", -1).to_list(500)
+    for r in rows:
+        r["id"] = str(r.pop("_id"))
+    return rows
+
+
+@api_router.delete("/training-units/{uid}")
+async def delete_unit(uid: str, user: dict = Depends(get_current_user)):
+    await db.training_units.delete_one({"_id": ObjectId(uid)})
+    return {"ok": True}
+
+
 # ---------- PDF ----------
 EVAL_COLORS = {"cinzenta": "#9CA3AF", "verde": "#22C55E", "amarelo": "#EAB308", "vermelho": "#EF4444"}
 
@@ -704,6 +803,92 @@ async def report_pdf(rid: str, request: Request):
     name = (r.get("goalkeeper_name", "GR") or "GR").strip()
     session = (r.get("session_number", "") or "").strip()
     filename = f"RI {name} {session}".strip() + ".pdf"
+    return StreamingResponse(buf, media_type="application/pdf",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@api_router.get("/training-units/{uid}/pdf")
+async def unit_pdf(uid: str, request: Request):
+    await get_current_user(request)
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle, Paragraph,
+                                    Spacer, Image as RLImage)
+
+    u = await db.training_units.find_one({"_id": ObjectId(uid)})
+    if not u:
+        raise HTTPException(status_code=404, detail="Unidade não encontrada")
+    ex_docs = []
+    for eid in u.get("exercise_ids", []):
+        try:
+            e = await db.exercises.find_one({"_id": ObjectId(eid)})
+        except Exception:
+            e = None
+        if e:
+            ex_docs.append(e)
+
+    DARK_GREEN = colors.HexColor("#0C3B1E")
+    PETROL = colors.HexColor("#0F3B43")
+    LGREY = colors.HexColor("#F3F4F6")
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=15 * mm, bottomMargin=15 * mm,
+                            leftMargin=14 * mm, rightMargin=14 * mm)
+    styles = getSampleStyleSheet()
+    bf = "Helvetica-BoldOblique"
+    title_style = ParagraphStyle("t", parent=styles["Title"], fontName=bf, textColor=DARK_GREEN, fontSize=20, spaceAfter=2)
+    h2 = ParagraphStyle("h2", parent=styles["Heading2"], fontName=bf, textColor=PETROL, fontSize=12, spaceBefore=8, spaceAfter=2)
+    normal = ParagraphStyle("n", parent=styles["Normal"], fontName="Helvetica", fontSize=9)
+    small = ParagraphStyle("s", parent=styles["Normal"], fontName="Helvetica-Oblique", fontSize=8)
+
+    elems = []
+    logo = await _logo_bytes()
+    logo_img = None
+    if logo:
+        try:
+            logo_img = RLImage(logo, width=18 * mm, height=18 * mm)
+        except Exception:
+            logo_img = None
+    title_block = [Paragraph("UNIDADE DE TREINO", title_style),
+                   Paragraph("Leões de Porto Salvo · Guarda-Redes", small)]
+    htbl = Table([[title_block, logo_img or ""]], colWidths=[None, 22 * mm])
+    htbl.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (1, 0), (1, 0), "RIGHT")]))
+    elems.append(htbl)
+    elems.append(Spacer(1, 4))
+
+    info = [["Título", u.get("title", ""), "Data", u.get("date", "")],
+            ["Nº de exercícios", str(len(ex_docs)), "", ""]]
+    it = Table(info, colWidths=[34 * mm, None, 22 * mm, 40 * mm])
+    it.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"), ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 0), (0, -1), LGREY), ("BACKGROUND", (2, 0), (2, -1), LGREY),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
+        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    elems.append(it)
+
+    elems.append(Paragraph("EXERCÍCIOS", h2))
+    for i, e in enumerate(ex_docs, 1):
+        comps = ", ".join(e.get("components", []) or [])
+        elems.append(Paragraph(f"<b>{i}. {e.get('title','')}</b>", normal))
+        if comps:
+            elems.append(Paragraph(f"<font color='#0F3B43'>Componentes:</font> {comps}", small))
+        if e.get("description"):
+            elems.append(Paragraph(e["description"], normal))
+        elems.append(Spacer(1, 4))
+    if not ex_docs:
+        elems.append(Paragraph("Sem exercícios nesta unidade.", small))
+
+    if u.get("notes"):
+        elems.append(Paragraph("NOTAS", h2))
+        elems.append(Paragraph(u["notes"], normal))
+
+    doc.build(elems)
+    buf.seek(0)
+    filename = ("UT " + (u.get("title", "") or "treino").strip()).strip() + ".pdf"
     return StreamingResponse(buf, media_type="application/pdf",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
