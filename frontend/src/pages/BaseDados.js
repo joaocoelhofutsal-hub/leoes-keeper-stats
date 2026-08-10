@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, FileText, ChevronLeft, Download, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, ChevronLeft, Download, Upload, Camera } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend,
 } from "recharts";
@@ -167,6 +167,30 @@ export default function BaseDados() {
     catch { toast.error("Falha ao enviar logo."); }
   };
 
+  const uploadGkPhoto = async (gid, file) => {
+    if (!file) return;
+    const fd = new FormData(); fd.append("file", file);
+    try {
+      const { data } = await api.post(`/goalkeepers/${gid}/photo`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setSelected((s) => (s && s.id === gid ? { ...s, photo: data.photo } : s));
+      await load();
+      toast.success("Fotografia atualizada.");
+    } catch { toast.error("Falha ao enviar foto."); }
+  };
+
+  const importData = async (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    let json;
+    try { json = JSON.parse(await file.text()); } catch { toast.error("Ficheiro JSON inválido."); return; }
+    const payload = { goalkeepers: json.goalkeepers || [], reports: json.reports || [] };
+    if (!payload.goalkeepers.length && !payload.reports.length) { toast.error("JSON sem 'goalkeepers'/'reports'."); return; }
+    try {
+      const { data } = await api.post("/import", payload);
+      toast.success(`Importado: ${data.goalkeepers} GR, ${data.reports} relatórios.`);
+      await load();
+    } catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
+  };
+
   // ---- Detail view ----
   if (selected) {
     return (
@@ -174,9 +198,21 @@ export default function BaseDados() {
         <button onClick={() => { setSelected(null); setProfile(null); }} data-testid="back-btn"
           className="flex items-center gap-1 text-sm font-semibold text-[#0F3B43]"><ChevronLeft size={18} /> Voltar à lista</button>
         <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="font-cond text-4xl font-extrabold uppercase text-[#0C3B1E]">{selected.name}</h1>
-            <div className="text-muted-foreground">{selected.team || "Sem escalão"}</div>
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              {selected.photo
+                ? <img src={selected.photo} alt={selected.name} className="w-20 h-20 rounded-2xl object-cover border border-gray-200" />
+                : <div className="w-20 h-20 rounded-2xl bg-[#0C3B1E]/10 flex items-center justify-center font-cond text-3xl font-extrabold text-[#0C3B1E]">{(selected.name || "?")[0]}</div>}
+              <label data-testid="gk-photo-label" className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-[#0F3B43] text-white flex items-center justify-center cursor-pointer shadow hover:bg-[#0b2d33]">
+                <Camera size={15} />
+                <input type="file" accept="image/*" className="hidden" data-testid="gk-photo-input"
+                  onChange={(e) => uploadGkPhoto(selected.id, e.target.files?.[0])} />
+              </label>
+            </div>
+            <div>
+              <h1 className="font-cond text-4xl font-extrabold uppercase text-[#0C3B1E]">{selected.name}</h1>
+              <div className="text-muted-foreground">{selected.team || "Sem escalão"}</div>
+            </div>
           </div>
           <Button onClick={() => openEdit(selected)} variant="outline" data-testid="edit-gk-btn"><Pencil size={16} className="mr-2" /> Editar</Button>
         </div>
@@ -329,6 +365,10 @@ export default function BaseDados() {
         <h1 className="font-cond text-4xl font-extrabold uppercase text-[#0C3B1E]">Base de Dados</h1>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={exportData} data-testid="export-btn"><Download size={16} className="mr-2" /> Exportar</Button>
+          <label className="inline-flex items-center gap-2 px-4 h-10 rounded-md border border-gray-300 text-sm font-medium cursor-pointer hover:bg-gray-50" data-testid="import-label">
+            <Upload size={16} /> Importar JSON
+            <input type="file" accept="application/json,.json" className="hidden" onChange={importData} data-testid="import-input" />
+          </label>
           <label className="inline-flex items-center gap-2 px-4 h-10 rounded-md border border-gray-300 text-sm font-medium cursor-pointer hover:bg-gray-50" data-testid="upload-logo-label">
             <Upload size={16} /> Logo
             <input type="file" accept="image/*" className="hidden" onChange={uploadLogo} data-testid="upload-logo-input" />

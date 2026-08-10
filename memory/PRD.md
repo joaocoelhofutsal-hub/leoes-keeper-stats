@@ -30,6 +30,14 @@ App web para análise estatística de guarda-redes de futsal do clube Leões de 
 - ✅ Exportar JSON, upload de logo.
 - ✅ Testado: 100% backend e frontend (iteration_1).
 
+## Implementado (2026-06 · iteração dados iniciais)
+- ✅ Seed de 8 guarda-redes recuperados (Cintra, Osuji, Jaime, Pedro 2 rel., Nilton 3 rel., + Rodrigo/Manuel/Tomás sem relatórios). Script: /app/backend/seed_initial.py (idempotente).
+- ✅ Ações reconstruídas a partir dos tops/totais; perfil/tendências gerados pelo motor (regra >=3, sem Enquadramento principal). Fracções ofensivas exatas.
+- ✅ Fotografia por guarda-redes: POST /api/goalkeepers/{id}/photo; avatar nos cartões e no cabeçalho do perfil (botão câmara).
+- ✅ Importação JSON (formato de export da própria app): POST /api/import; botão "Importar JSON" na Base de Dados.
+- ✅ Tendência adicional zona→seguimento no motor de perfil.
+- ✅ Removidas situações "1 contra 1" e "Remate após 1x1 na ala".
+
 ## Backlog / próximos (P1/P2)
 - P2: validar ObjectId malformado (400) e 404 em update/delete inexistente.
 - P2: migrar startup para lifespan handlers.

@@ -1,6 +1,6 @@
 export const SITUACOES = [
-  "Balão", "Remate", "Remate após 1x1", "Remate após 1x1 na ala",
-  "Passe ao 2º poste", "1 contra 1", "Cobertura",
+  "Balão", "Remate", "Remate após 1x1",
+  "Passe ao 2º poste", "Cobertura",
 ];
 
 export const ZONAS = [

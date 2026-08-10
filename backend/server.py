@@ -118,8 +118,14 @@ class PointItem(BaseModel):
 class GoalkeeperIn(BaseModel):
     name: str
     team: Optional[str] = ""
+    photo: Optional[str] = ""
     strong_points: List[PointItem] = []
     weak_points: List[PointItem] = []
+
+
+class ImportPayload(BaseModel):
+    goalkeepers: List[dict] = []
+    reports: List[dict] = []
 
 
 class Action(BaseModel):
@@ -206,6 +212,7 @@ async def list_goalkeepers(user: dict = Depends(get_current_user)):
         gid = str(g["_id"])
         count = await db.reports.count_documents({"goalkeeper_id": gid})
         out.append({"id": gid, "name": g["name"], "team": g.get("team", ""),
+                    "photo": g.get("photo", ""),
                     "strong_points": g.get("strong_points", []),
                     "weak_points": g.get("weak_points", []),
                     "report_count": count})
@@ -231,6 +238,40 @@ async def delete_goalkeeper(gid: str, user: dict = Depends(get_current_user)):
     await db.goalkeepers.delete_one({"_id": ObjectId(gid)})
     await db.reports.delete_many({"goalkeeper_id": gid})
     return {"ok": True}
+
+
+@api_router.post("/goalkeepers/{gid}/photo")
+async def upload_gk_photo(gid: str, file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    data = await file.read()
+    b64 = "data:" + (file.content_type or "image/png") + ";base64," + base64.b64encode(data).decode()
+    await db.goalkeepers.update_one({"_id": ObjectId(gid)}, {"$set": {"photo": b64}})
+    return {"photo": b64}
+
+
+@api_router.post("/import")
+async def import_data(payload: ImportPayload, user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    id_map = {}
+    gk_count = 0
+    rep_count = 0
+    for g in payload.goalkeepers:
+        old = g.get("id") or str(g.get("_id", ""))
+        doc = {"name": g.get("name", "GR"), "team": g.get("team", ""),
+               "photo": g.get("photo", ""),
+               "strong_points": g.get("strong_points", []),
+               "weak_points": g.get("weak_points", []), "created_at": now}
+        res = await db.goalkeepers.insert_one(doc)
+        if old:
+            id_map[old] = str(res.inserted_id)
+        gk_count += 1
+    for r in payload.reports:
+        gid = id_map.get(r.get("goalkeeper_id"), r.get("goalkeeper_id", ""))
+        doc = {k: v for k, v in r.items() if k not in ("id", "_id")}
+        doc["goalkeeper_id"] = gid
+        doc.setdefault("created_at", now)
+        await db.reports.insert_one(doc)
+        rep_count += 1
+    return {"goalkeepers": gk_count, "reports": rep_count}
 
 
 # ---------- Reports ----------
@@ -353,6 +394,18 @@ def compute_profile(reports):
         t, tc = _most_common(techs)
         if t and tc >= 3:
             trends.append(f"No {z.lower()}, maior tendência para usar {t} ({tc}).")
+
+    # zone -> followup
+    by_zone_f = {}
+    for a in all_actions:
+        z = a.get("zone")
+        f = a.get("followup")
+        if z and f:
+            by_zone_f.setdefault(z, []).append(f)
+    for z, fs in by_zone_f.items():
+        f, fc = _most_common(fs)
+        if f and fc >= 3:
+            trends.append(f"No {z.lower()}, a bola termina mais em {f} ({fc}).")
 
     # decision (avoid Enquadramento as main)
     dec_counter = Counter([d for d in decisions if d])
