@@ -1,0 +1,116 @@
+{
+  "theme": "light",
+  "rationale": "For tactical sports dashboards used on tablets during matches, a light theme with high-contrast dark green/petrol headers ensures legibility under bright arena lights. This leans into 'The Performance Pro' archetype.",
+  "typography": {
+    "headings": {
+      "family": "Barlow Condensed, sans-serif",
+      "weight": "900",
+      "style": "tracking-tight uppercase",
+      "description": "Tactical, heavyweight, and commanding. Used for main data points and section headers."
+    },
+    "body": {
+      "family": "Manrope, sans-serif",
+      "weight": "400, 500, 600",
+      "style": "tracking-normal",
+      "description": "Highly legible geometric sans for fast scanning of dense tabular data."
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl",
+      "h2": "text-2xl sm:text-3xl",
+      "h3": "text-xl sm:text-2xl",
+      "body": "text-base",
+      "labels": "text-sm tracking-[0.2em] uppercase font-bold"
+    }
+  },
+  "colors": {
+    "primary": {
+      "name": "Dark Green (Verde Escuro)",
+      "hex": "#0C3B1E",
+      "tailwind": "bg-[#0C3B1E] text-white"
+    },
+    "secondary": {
+      "name": "Petrol Blue (Azul Petróleo)",
+      "hex": "#0F3B43",
+      "tailwind": "bg-[#0F3B43] text-white"
+    },
+    "background": {
+      "name": "White (Branco)",
+      "hex": "#FFFFFF",
+      "tailwind": "bg-white"
+    },
+    "surface": {
+      "name": "Light Grey (Cinzento Claro)",
+      "hex": "#F3F4F6",
+      "tailwind": "bg-gray-100"
+    },
+    "evaluation_chips": {
+      "gray": "#9CA3AF",
+      "green": "#22C55E",
+      "yellow": "#EAB308",
+      "red": "#EF4444"
+    },
+    "rules": [
+      "Use Petrol Blue (#0F3B43) as the accent trigger and Dark Green (#0C3B1E) as the structural anchor.",
+      "Never use pure black or generic SaaS blue.",
+      "Ensure minimum 4.5:1 contrast ratio. Use Text Shadow on overlays."
+    ]
+  },
+  "layouts": {
+    "global": "Mobile/Tablet-first responsive grid. Override default stretch with align-items: start where needed.",
+    "dashboard_mode": "High Density Grid (Mode B). grid-cols-1 md:grid-cols-4. gap-6. Every pixel utilized.",
+    "data_entry_mode": "The 'Bento' Grid Protocol. grid-cols-2 md:grid-cols-6 with oversized tap targets for iPad.",
+    "spacing": "Generous spacing. p-6 or p-8 inside cards to avoid text collision.",
+    "surfaces": "Flat Solid surfaces with 1px subtle borders (border-gray-200). Avoid generic card shadows. Use Neumorphism strictly for large toggle buttons in the 'Registo' page."
+  },
+  "components": {
+    "buttons": "Pill-shaped or sharp rectangular, heavily customized Shadcn buttons. 'Registo' buttons must be oversized (min-h-[80px]) for fast tapping on iPad.",
+    "tables": "Shadcn Table. Flat, dense styles. Left-aligned data, centered metrics.",
+    "forms": "Shadcn Form, Input, Select. Never use native inputs.",
+    "charts": "Shadcn Chart components (Recharts). Color-blind-friendly palettes using the brand colors.",
+    "navigation": "Sticky solid header (z-50) with logo, navigation links, and primary CTA. NO transparent backgrounds over content.",
+    "toasts": "Use 'sonner' for success/error alerts."
+  },
+  "visual_enhancers": {
+    "borders": "Grid borders. border-collapse layouts for stats tables. Subtle right/bottom borders (border-gray-200).",
+    "motion": "Fast micro-interactions. hover:-translate-y-1 on stat cards. No slow animations that hinder rapid data entry.",
+    "icons": "Phosphor Icons (@phosphor-icons/react) for dense tactical clarity. Duotone or bold weights."
+  },
+  "media": {
+    "image_urls": {
+      "hero_bg": {
+        "url": "https://images.pexels.com/photos/13521967/pexels-photo-13521967.jpeg",
+        "description": "Futsal goalkeeper action shot. Use for Login screen background with dark green overlay."
+      },
+      "dashboard_empty_state": {
+        "url": "https://images.pexels.com/photos/13907431/pexels-photo-13907431.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Coach with tactical tablet. Use for onboarding or empty states."
+      },
+      "brand_logo": {
+        "url": "https://images.unsplash.com/photo-1617620399178-09838e81ee7a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwxfHxsaW9uJTIwbG9nbyUyMHNwb3J0c3xlbnwwfHx8fDE3ODQ2NDY3MzV8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Lion logo placeholder for 'Leões de Porto Salvo'."
+      }
+    },
+    "rules": "Images must not exceed 80vh on mobile. Max overlay opacity bg-black/50 or bg-[#0C3B1E]/60."
+  },
+  "accessibility": {
+    "contrast": "Minimum 4.5:1 for standard text.",
+    "testing": "All interactive elements MUST include data-testid attribute (e.g., data-testid='registo-submit-button').",
+    "motion": "Respect prefers-reduced-motion."
+  },
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "No generic centered layouts. Use optical alignment.",
+    "Prioritize Shadcn UI components but strip the Vercel-look. Apply tactical flat aesthetics.",
+    "Create depth via layout hierarchy, not just drop shadows.",
+    "Buttons must have interaction animations and hover states that explicitly set text color (e.g., hover:bg-emerald-900 hover:text-white).",
+    "Never use AI assistant emojis.",
+    "Never use placeholder image URLs. Use the provided ones.",
+    "Use standard React .js files, not .tsx files."
+  ],
+  "instructions_to_main_agent": {
+    "step_1": "Setup Tailwind with custom color palette (Dark Green, Petrol Blue, Light Grey). Add Barlow Condensed and Manrope fonts.",
+    "step_2": "Build standard layout with a solid dark green header (z-50) and navigation. NO transparent background for the header.",
+    "step_3": "Develop the 'Registo' page: a tablet-optimized form with massive, high-contrast toggle buttons (using Shadcn primitives) for fast game-action recording.",
+    "step_4": "Develop the 'Base de Dados' page: a dense, analytical dashboard (grid-cols-4) featuring Shadcn tables and Recharts for goalkeeper stat trends.",
+    "step_5": "Ensure all buttons, inputs, and toggles have `data-testid` attributes."
+  }
+}

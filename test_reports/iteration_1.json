@@ -1,0 +1,24 @@
+{
+  "summary": "Full backend + frontend UI testing of Leões Guarda-Redes app. 12/12 pytest backend tests passed (auth, CRUD goalkeepers/reports, profile trends >=3 rule, PDF endpoint, export, logo, protected routes). Full Playwright flow validated: login redirects to /registo, protected route enforcement, create new GK via select '__new__', general form fields, all SelectGrid groups (situação/zona/distância/finalização/técnica/decisão multi/seguimento/avaliação) work, amarelo/vermelho reveals action-feedback input, adicionar ação clears form, 4 actions added correctly, offensive counters increment and never go below 0, save-report opens PDF popup and clears actions list, Base de Dados lists GK cards, detail view shows StatCards + auto profile + trends (min 3 occurrences enforced: 'Seguimento mais frequente: GR recuperou (4)'), edit strengths/weaknesses/source save, delete report + delete GK confirm flows, export downloads leoes-export.json. Everything works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend server.py is a single 632-line file - consider splitting into routers (auth/goalkeepers/reports/pdf) for maintainability.",
+    "PUT /goalkeepers/{gid} and DELETE /goalkeepers/{gid} don't validate ObjectId format - will throw 500 on malformed id; use try/except to return 400.",
+    "PUT /goalkeepers/{gid} doesn't check if the goalkeeper exists (update_one on missing doc silently returns 0 modified) - should return 404 when not found.",
+    "DELETE /reports/{rid} and DELETE /goalkeepers/{gid} return {ok: true} even when nothing was deleted - should return 404 if not found.",
+    "PDF endpoint uses attachment Content-Disposition which forces download instead of inline view; frontend does window.open expecting inline preview. Consider 'inline' for better UX.",
+    "Startup hook uses deprecated @app.on_event; migrate to lifespan handlers (FastAPI recommends since 0.93).",
+    "compute_profile trend loop breaks on first non-Enquadramento decision >=3; consider listing all or top-N for richer analysis.",
+    "No pagination on /api/goalkeepers, /api/export (5000 hard limit) - fine for MVP but note it."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin joaocoelhofutsal@gmail.com / leoes2011 (from /app/memory/test_credentials.md) - works",
+  "seed_data_creation": "All TEST_ prefixed goalkeepers/reports were cleaned up after testing.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend tests at /app/backend/tests/backend_test.py cover auth + CRUD + PDF + trends. Frontend Registo flow: use data-testid sel-<group>-<option-lowercased-with-dashes>. Adding actions requires small waits (~200ms) between tile clicks - clicking too fast can miss state updates in React (observed 2/3 rows initially, 4/4 with 150ms waits). PDF opens in new tab via window.open to /api/reports/{id}/pdf (attachment header)."
+}

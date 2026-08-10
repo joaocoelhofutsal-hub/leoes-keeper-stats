@@ -1,0 +1,50 @@
+export const SITUACOES = [
+  "Balão", "Remate", "Remate após 1x1", "Remate após 1x1 na ala",
+  "Passe ao 2º poste", "1 contra 1", "Cobertura",
+];
+
+export const ZONAS = [
+  "Corredor lateral esquerdo", "Entre corredores esquerdo", "Corredor central",
+  "Entre corredores direito", "Corredor lateral direito",
+];
+
+export const DISTANCIAS = ["0-2 m", "3-6 m", "7-10 m", "12 m+", "Meio-campo +"];
+
+export const FINALIZACOES = [
+  "Canto superior esquerdo", "Canto superior direito", "Canto inferior esquerdo",
+  "Canto inferior direito", "Meia altura esquerda", "Meia altura central",
+  "Meia altura direita", "Central alta", "Central rasteira", "Tornozelos do GR",
+];
+
+export const TECNICAS = [
+  "Defesa com as pernas", "Defesa com os tornozelos", "Defesa com os braços",
+  "Encaixe", "Parede", "Barreirista", "Aguardar em flexão", "Saída de joelhos",
+  "Projeção no ar", "Queda lateral", "Limpar a bola", "Passe",
+];
+
+export const DECISOES = [
+  "Enquadramento", "Encurtamento", "Ocupar espaço",
+  "Técnica de recurso", "Defesa de reação", "Atacar a bola",
+];
+
+export const SEGUIMENTOS = [
+  "Bola saiu pela lateral", "Bola saiu pela linha final", "GR recuperou",
+  "Equipa recuperou", "Sobrou no corredor central", "Bola no adversário",
+  "Golo do adversário",
+];
+
+export const AVALIACOES = [
+  { key: "cinzenta", label: "Cinzenta", color: "#9CA3AF" },
+  { key: "verde", label: "Verde", color: "#22C55E" },
+  { key: "amarelo", label: "Amarelo", color: "#EAB308" },
+  { key: "vermelho", label: "Vermelho", color: "#EF4444" },
+];
+
+export const EMPTY_ACTION = {
+  situation: "", zone: "", distance: "", finish_type: "", technique: "",
+  decisions: [], followup: "", evaluation: "", feedback: "", notes: "",
+};
+
+export const EMPTY_OFFENSIVE = {
+  passes_ok: 0, passes_err: 0, shots_ok: 0, shots_err: 0, repos_ok: 0, repos_err: 0,
+};
