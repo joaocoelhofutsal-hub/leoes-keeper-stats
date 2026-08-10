@@ -52,15 +52,54 @@ def test_list_goalkeepers(client, gk_id):
     assert "TEST_GK_Auto" in names
 
 
-def test_update_goalkeeper(client, gk_id):
+def test_update_goalkeeper_points(client, gk_id):
     r = client.put(f"{API}/goalkeepers/{gk_id}",
                    json={"name": "TEST_GK_Auto", "team": "Sub-17",
-                         "strengths": "reflexos", "weaknesses": "saidas", "source": "Obs J4"})
+                         "strong_points": [{"text": "reflexos", "source": "J4"},
+                                           {"text": "posição", "source": "UT2"}],
+                         "weak_points": [{"text": "saídas", "source": "J3"}]})
     assert r.status_code == 200
     lst = client.get(f"{API}/goalkeepers").json()
     g = next(x for x in lst if x["id"] == gk_id)
     assert g["team"] == "Sub-17"
-    assert g["strengths"] == "reflexos"
+    assert isinstance(g["strong_points"], list) and len(g["strong_points"]) == 2
+    assert g["strong_points"][0]["text"] == "reflexos"
+    assert g["strong_points"][0]["source"] == "J4"
+    assert isinstance(g["weak_points"], list) and len(g["weak_points"]) == 1
+    assert g["weak_points"][0]["text"] == "saídas"
+
+
+def test_offensive_fraction_trend(client, gk_id):
+    """Add report with 3+ passe errors and verify fraction trend '(X/Y)'"""
+    payload = {
+        "goalkeeper_id": gk_id, "goalkeeper_name": "TEST_GK_Auto",
+        "session_number": "OFF1", "date": "2026-01-12",
+        "actions": [],
+        "offensive": {"passes_ok": 9, "passes_err": 3, "shots_ok": 0, "shots_err": 0, "repos_ok": 0, "repos_err": 0}
+    }
+    rid = client.post(f"{API}/reports", json=payload).json()["id"]
+    try:
+        p = client.get(f"{API}/goalkeepers/{gk_id}/profile").json()
+        # Verify fraction present in some trend
+        assert any("(" in t and "/" in t and ")" in t for t in p["trends"]), p["trends"]
+    finally:
+        client.delete(f"{API}/reports/{rid}")
+
+
+def test_pdf_filename_format(client, gk_id):
+    """Filename must be 'RI <name> <session>.pdf'"""
+    payload = {
+        "goalkeeper_id": gk_id, "goalkeeper_name": "TEST_GK_Auto",
+        "session_number": "J9", "date": "2026-01-12",
+        "actions": [_make_action()], "offensive": {}
+    }
+    rid = client.post(f"{API}/reports", json=payload).json()["id"]
+    try:
+        r = client.get(f"{API}/reports/{rid}/pdf")
+        cd = r.headers.get("content-disposition", "")
+        assert "RI TEST_GK_Auto J9.pdf" in cd, cd
+    finally:
+        client.delete(f"{API}/reports/{rid}")
 
 
 # ---------- Reports ----------

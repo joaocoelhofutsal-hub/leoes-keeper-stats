@@ -28,8 +28,8 @@ export default function Login() {
   return (
     <div className="min-h-screen grid md:grid-cols-2">
       <div className="hidden md:block relative">
-        <img src="https://images.pexels.com/photos/13521967/pexels-photo-13521967.jpeg"
-          alt="futsal" className="absolute inset-0 w-full h-full object-cover" />
+        <img src="https://customer-assets-7cd3h4nn.emergentagent.net/job_leoes-keeper-stats/artifacts/itnfxfa5_image.png"
+          alt="Guarda-redes Leões de Porto Salvo" className="absolute inset-0 w-full h-full object-cover object-top" />
         <div className="absolute inset-0 bg-[#0C3B1E]/70" />
         <div className="absolute bottom-10 left-10 right-10 text-white">
           <div className="font-cond text-5xl font-extrabold uppercase leading-none">Leões de Porto Salvo</div>

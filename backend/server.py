@@ -110,12 +110,16 @@ class LoginIn(BaseModel):
     password: str
 
 
+class PointItem(BaseModel):
+    text: str
+    source: Optional[str] = ""
+
+
 class GoalkeeperIn(BaseModel):
     name: str
     team: Optional[str] = ""
-    strengths: Optional[str] = ""
-    weaknesses: Optional[str] = ""
-    source: Optional[str] = ""
+    strong_points: List[PointItem] = []
+    weak_points: List[PointItem] = []
 
 
 class Action(BaseModel):
@@ -202,8 +206,9 @@ async def list_goalkeepers(user: dict = Depends(get_current_user)):
         gid = str(g["_id"])
         count = await db.reports.count_documents({"goalkeeper_id": gid})
         out.append({"id": gid, "name": g["name"], "team": g.get("team", ""),
-                    "strengths": g.get("strengths", ""), "weaknesses": g.get("weaknesses", ""),
-                    "source": g.get("source", ""), "report_count": count})
+                    "strong_points": g.get("strong_points", []),
+                    "weak_points": g.get("weak_points", []),
+                    "report_count": count})
     return out
 
 
@@ -358,12 +363,15 @@ def compute_profile(reports):
             trends.append(f"Tomada de decisão frequente: {dec} ({cnt}).")
             break
 
-    # Offensive pass fail %
-    total_pass = off["passes_ok"] + off["passes_err"]
-    if total_pass > 0:
-        fail_pct = round(off["passes_err"] / total_pass * 100)
-        if fail_pct > 0:
-            trends.append(f"Falhou {fail_pct}% dos passes em geral.")
+    # Offensive fails (only with >=3 errors, with fraction)
+    def _off_trend(err, ok, label):
+        tot = ok + err
+        if tot > 0 and err >= 3:
+            pct = round(err / tot * 100)
+            trends.append(f"Falhou {pct}% {label} ({err}/{tot}).")
+    _off_trend(off["passes_err"], off["passes_ok"], "dos passes em geral")
+    _off_trend(off["shots_err"], off["shots_ok"], "dos remates")
+    _off_trend(off["repos_err"], off["repos_ok"], "das reposições")
 
     def dist(items):
         c = Counter([i for i in items if i])
@@ -483,22 +491,21 @@ async def report_pdf(rid: str, request: Request):
 
     elems = []
     logo = await _logo_bytes()
-    header_left = []
+    logo_img = None
     if logo:
         try:
-            img = RLImage(logo, width=26 * mm, height=26 * mm)
-            header_left.append(img)
+            logo_img = RLImage(logo, width=18 * mm, height=18 * mm)
         except Exception:
-            pass
+            logo_img = None
     title_block = [Paragraph("RELATÓRIO INDIVIDUAL", title_style),
-                   Paragraph("Leões de Porto Salvo · Análise de Guarda-Redes", small)]
-    if header_left:
-        htbl = Table([[header_left[0], title_block]], colWidths=[30 * mm, None])
-    else:
-        htbl = Table([[title_block]], colWidths=[None])
-    htbl.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+                   Paragraph("Leões de Porto Salvo", small)]
+    htbl = Table([[title_block, logo_img or ""]], colWidths=[None, 22 * mm])
+    htbl.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+    ]))
     elems.append(htbl)
-    elems.append(Spacer(1, 6))
+    elems.append(Spacer(1, 4))
 
     info = [
         ["Guarda-redes", r.get("goalkeeper_name", ""), "Escalão/Equipa", r.get("team", "")],
@@ -558,26 +565,27 @@ async def report_pdf(rid: str, request: Request):
     at.setStyle(TableStyle(style))
     elems.append(at)
 
-    # Offensive table
+    # Offensive grouped (only non-zero)
     elems.append(Paragraph("AÇÕES OFENSIVAS", h2))
     o = r.get("offensive", {}) or {}
-    otbl = Table([
-        ["", "Certo", "Errado"],
-        ["Passe", str(o.get("passes_ok", 0)), str(o.get("passes_err", 0))],
-        ["Remate", str(o.get("shots_ok", 0)), str(o.get("shots_err", 0))],
-        ["Reposição", str(o.get("repos_ok", 0)), str(o.get("repos_err", 0))],
-    ], colWidths=[40 * mm, 30 * mm, 30 * mm])
-    otbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), PETROL),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D1D5DB")),
-        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
-    elems.append(otbl)
+    off_map = [
+        ("Passe certo", o.get("passes_ok", 0)), ("Passe errado", o.get("passes_err", 0)),
+        ("Remate certo", o.get("shots_ok", 0)), ("Remate errado", o.get("shots_err", 0)),
+        ("Reposição certa", o.get("repos_ok", 0)), ("Reposição errada", o.get("repos_err", 0)),
+    ]
+    off_rows = [[Paragraph(f"<b>{lbl}</b>", normal), str(v)] for lbl, v in off_map if v]
+    if off_rows:
+        otbl = Table(off_rows, colWidths=[60 * mm, 20 * mm])
+        otbl.setStyle(TableStyle([
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D1D5DB")),
+            ("BACKGROUND", (0, 0), (0, -1), LGREY),
+            ("ALIGN", (1, 0), (1, -1), "CENTER"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        elems.append(otbl)
+    else:
+        elems.append(Paragraph("Sem ações ofensivas registadas.", small))
 
     # Profile / trends
     elems.append(Paragraph("PERFIL E TENDÊNCIAS", h2))

@@ -48,3 +48,20 @@ export const EMPTY_ACTION = {
 export const EMPTY_OFFENSIVE = {
   passes_ok: 0, passes_err: 0, shots_ok: 0, shots_err: 0, repos_ok: 0, repos_err: 0,
 };
+
+export const ZONA_SHORT = ["Lat. Esq.", "Entre Esq.", "Central", "Entre Dir.", "Lat. Dir."];
+
+export const GOAL_GRID = [
+  ["Canto superior esquerdo", "Central alta", "Canto superior direito"],
+  ["Meia altura esquerda", "Meia altura central", "Meia altura direita"],
+  ["Canto inferior esquerdo", "Central rasteira", "Canto inferior direito"],
+];
+
+export const OFFENSIVE_BUTTONS = [
+  { key: "passes_ok", label: "Passe certo", tone: "ok" },
+  { key: "passes_err", label: "Passe errado", tone: "err" },
+  { key: "shots_ok", label: "Remate certo", tone: "ok" },
+  { key: "shots_err", label: "Remate errado", tone: "err" },
+  { key: "repos_ok", label: "Reposição certa", tone: "ok" },
+  { key: "repos_err", label: "Reposição errada", tone: "err" },
+];

@@ -21,7 +21,7 @@ export function SelectGrid({ label, options, value, onChange, multi = false, col
             data-testid={`${testid}-${opt.replace(/\s+/g, "-").toLowerCase()}`}
             onClick={() => toggle(opt)}
             className={cn(
-              "select-tile min-h-[56px] rounded-xl border-2 px-3 py-2 text-sm font-semibold leading-tight text-center",
+              "select-tile min-h-[46px] rounded-lg border-2 px-2 py-1.5 text-[11px] sm:text-sm font-semibold leading-tight text-center break-words",
               isSelected(opt)
                 ? "bg-[#0C3B1E] text-white border-[#0C3B1E] shadow-md"
                 : "bg-white text-[#0C3B1E] border-gray-200 hover:border-[#0C3B1E]"

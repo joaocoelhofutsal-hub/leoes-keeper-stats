@@ -91,6 +91,8 @@ export default function BaseDados() {
   const [form, setForm] = useState({ name: "", team: "", strengths: "", weaknesses: "", source: "" });
   const [editId, setEditId] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null); // {type,id}
+  const [spText, setSpText] = useState(""); const [spSrc, setSpSrc] = useState("");
+  const [wpText, setWpText] = useState(""); const [wpSrc, setWpSrc] = useState("");
 
   const load = () => api.get("/goalkeepers").then((r) => setGks(r.data)).catch(() => {});
   useEffect(() => { load(); }, []);
@@ -104,8 +106,32 @@ export default function BaseDados() {
     setProfile(p.data); setReports(r.data);
   };
 
-  const openNew = () => { setEditId(null); setForm({ name: "", team: "", strengths: "", weaknesses: "", source: "" }); setEditOpen(true); };
-  const openEdit = (g) => { setEditId(g.id); setForm({ name: g.name, team: g.team || "", strengths: g.strengths || "", weaknesses: g.weaknesses || "", source: g.source || "" }); setEditOpen(true); };
+  const openNew = () => { setEditId(null); setForm({ name: "", team: "" }); setEditOpen(true); };
+  const openEdit = (g) => { setEditId(g.id); setForm({ name: g.name, team: g.team || "" }); setEditOpen(true); };
+
+  const savePoints = async (sp, wp) => {
+    await api.put(`/goalkeepers/${selected.id}`, { name: selected.name, team: selected.team, strong_points: sp, weak_points: wp });
+    setSelected({ ...selected, strong_points: sp, weak_points: wp });
+    await load();
+  };
+  const addPoint = async (kind) => {
+    const text = kind === "strong" ? spText : wpText;
+    const source = kind === "strong" ? spSrc : wpSrc;
+    if (!text.trim()) { toast.error("Escreve o ponto primeiro."); return; }
+    const sp = [...(selected.strong_points || [])];
+    const wp = [...(selected.weak_points || [])];
+    const item = { text: text.trim(), source: source.trim() };
+    if (kind === "strong") sp.push(item); else wp.push(item);
+    await savePoints(sp, wp);
+    if (kind === "strong") { setSpText(""); setSpSrc(""); } else { setWpText(""); setWpSrc(""); }
+    toast.success("Adicionado.");
+  };
+  const removePoint = async (kind, idx) => {
+    const sp = [...(selected.strong_points || [])];
+    const wp = [...(selected.weak_points || [])];
+    if (kind === "strong") sp.splice(idx, 1); else wp.splice(idx, 1);
+    await savePoints(sp, wp);
+  };
 
   const saveGk = async () => {
     if (!form.name.trim()) { toast.error("Nome obrigatório."); return; }
@@ -157,8 +183,9 @@ export default function BaseDados() {
 
         {profile && (
           <>
+            <h2 className="font-cond text-2xl sm:text-3xl font-extrabold uppercase text-[#0F3B43] border-b-2 border-[#0F3B43]/20 pb-1">Perfil do Guarda-Redes</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard label="Total de relatórios" value={profile.total_reports} />
+              <StatCard label="Nº de relatórios" value={profile.total_reports} />
               <StatCard label="Média ações/jogo" value={profile.avg_actions_per_game} />
               <StatCard label="Média verdes/relatório" value={profile.avg_green_per_report} />
               <StatCard label="Total de ações" value={profile.total_actions} />
@@ -186,11 +213,48 @@ export default function BaseDados() {
 
             <section className="rounded-2xl border border-gray-200 p-5 bg-white space-y-4">
               <h2 className="font-cond text-2xl font-bold uppercase text-[#0F3B43]">Análise do treinador</h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div><Label>Pontos fortes</Label><p className="text-sm mt-1 whitespace-pre-wrap">{selected.strengths || "—"}</p></div>
-                <div><Label>Pontos fracos</Label><p className="text-sm mt-1 whitespace-pre-wrap">{selected.weaknesses || "—"}</p></div>
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Pontos fortes */}
+                <div className="space-y-3">
+                  <div className="font-bold text-green-700 uppercase text-sm">Pontos fortes</div>
+                  <div className="space-y-2">
+                    {(selected.strong_points || []).length === 0 && <div className="text-sm text-muted-foreground">Sem pontos fortes.</div>}
+                    {(selected.strong_points || []).map((p, i) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-green-50 border border-green-200" data-testid={`strong-item-${i}`}>
+                        <div className="flex-1 text-sm"><div>{p.text}</div>{p.source && <div className="text-xs text-muted-foreground">Fonte: {p.source}</div>}</div>
+                        <button onClick={() => removePoint("strong", i)} data-testid={`del-strong-${i}`} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-2">
+                    <Input placeholder="Novo ponto forte" value={spText} data-testid="strong-text" onChange={(e) => setSpText(e.target.value)} />
+                    <div className="flex gap-2">
+                      <Input placeholder="Fonte (ex: jogo vs Sporting)" value={spSrc} data-testid="strong-source" onChange={(e) => setSpSrc(e.target.value)} />
+                      <Button onClick={() => addPoint("strong")} data-testid="add-strong-btn" className="bg-green-700 hover:bg-green-800 text-white shrink-0"><Plus size={16} /></Button>
+                    </div>
+                  </div>
+                </div>
+                {/* Pontos fracos */}
+                <div className="space-y-3">
+                  <div className="font-bold text-red-600 uppercase text-sm">Pontos fracos</div>
+                  <div className="space-y-2">
+                    {(selected.weak_points || []).length === 0 && <div className="text-sm text-muted-foreground">Sem pontos fracos.</div>}
+                    {(selected.weak_points || []).map((p, i) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-red-50 border border-red-200" data-testid={`weak-item-${i}`}>
+                        <div className="flex-1 text-sm"><div>{p.text}</div>{p.source && <div className="text-xs text-muted-foreground">Fonte: {p.source}</div>}</div>
+                        <button onClick={() => removePoint("weak", i)} data-testid={`del-weak-${i}`} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-2">
+                    <Input placeholder="Novo ponto fraco" value={wpText} data-testid="weak-text" onChange={(e) => setWpText(e.target.value)} />
+                    <div className="flex gap-2">
+                      <Input placeholder="Fonte (ex: treino UT2)" value={wpSrc} data-testid="weak-source" onChange={(e) => setWpSrc(e.target.value)} />
+                      <Button onClick={() => addPoint("weak")} data-testid="add-weak-btn" className="bg-red-600 hover:bg-red-700 text-white shrink-0"><Plus size={16} /></Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div><Label>Fonte</Label><p className="text-sm mt-1">{selected.source || "—"}</p></div>
             </section>
 
             <section className="rounded-2xl border border-gray-200 p-5 bg-white">
@@ -232,9 +296,7 @@ export default function BaseDados() {
           <div className="space-y-3">
             <div className="space-y-1"><Label>Nome</Label><Input value={form.name} data-testid="form-name" onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-1"><Label>Escalão / Equipa</Label><Input value={form.team} data-testid="form-team" onChange={(e) => setForm({ ...form, team: e.target.value })} /></div>
-            <div className="space-y-1"><Label>Pontos fortes</Label><Textarea rows={2} value={form.strengths} data-testid="form-strengths" onChange={(e) => setForm({ ...form, strengths: e.target.value })} /></div>
-            <div className="space-y-1"><Label>Pontos fracos</Label><Textarea rows={2} value={form.weaknesses} data-testid="form-weaknesses" onChange={(e) => setForm({ ...form, weaknesses: e.target.value })} /></div>
-            <div className="space-y-1"><Label>Fonte</Label><Input value={form.source} data-testid="form-source" onChange={(e) => setForm({ ...form, source: e.target.value })} placeholder="Ex: Observação jogo J4" /></div>
+            <p className="text-xs text-muted-foreground">Os pontos fortes e fracos são geridos no perfil do guarda-redes.</p>
           </div>
           <DialogFooter>
             <Button onClick={saveGk} data-testid="save-gk-btn" className="bg-[#0C3B1E] hover:bg-[#0a3018] text-white">Guardar</Button>

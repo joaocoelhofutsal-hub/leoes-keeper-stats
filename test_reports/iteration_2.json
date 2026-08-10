@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 2 refinement testing. Backend: 14/14 pytest passed (auth, protected routes, goalkeepers CRUD with new strong_points/weak_points list schema, reports CRUD, profile trends, PDF endpoint incl. filename 'RI <name> <session>.pdf', offensive fraction trend '(X/Y)', export, logo, delete-report 404). Frontend: full compact Registo flow verified on 1280x900: login->/registo redirect, protected route redirects, gk-select '__new__' + gk-name/team, sel-situacao/tecnica/decisao (multi)/seguimento work, VisualPickers (court-zone-*, court-dist-*, goal-<slug>, goal-tornozelos) work AND sync bidirectionally with quick buttons (sel-zona-*, sel-distancia-*), sel-avaliacao-amarelo/vermelho reveal action-feedback, add-action-btn appends action-row-N and clears form (verified 3 rows), multi decisions preserved in row, offensive counters +/- with clamp at 0, save-report-btn opens PDF popup + clears table + resets counters, empty save blocked with toast. Base de Dados: card->detail with heading 'Perfil do Guarda-Redes', StatCards, profile-charts, trends list showed exactly 3 including fraction ('Falhou 60% dos passes em geral (3/5).'), add/del strong-item-0 and weak-item-0 with text+source, persistence across reload confirmed, edit-gk-btn team update, delete GK+report with confirm-delete-btn, new-gk-btn dialog only name+team.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Registo sticky footer", "issue": "On narrow viewports (<=768px, tested at 760px width), the sticky 'GUARDAR RELATÓRIO + PDF' footer overlaps the 'Adicionar ação' button when user scrolls down. Playwright DOM-level clicks work, but real touch/mouse clicks on 'Adicionar ação' would be intercepted by the sticky footer. Recommend adding bottom padding (pb-20 or spacer) to the scrollable area OR hiding sticky footer when actions list is empty.", "selector": "[data-testid=\"add-action-btn\"] vs [data-testid=\"save-report-btn\"]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Add bottom spacer/padding on Registo (e.g., className='pb-24' on outer container) so the sticky 'Guardar Relatório + PDF' does not overlap the 'Adicionar ação' primary CTA on tablets/narrow viewports."
+  ],
+  "critical_code_review_comments": [
+    "PUT/DELETE /api/goalkeepers/{gid} still do not validate ObjectId (500 on malformed id) and don't return 404 when nothing modified/deleted - same finding as iteration_1.",
+    "PDF endpoint uses Content-Disposition: attachment; forces download. Frontend uses window.open expecting inline preview - use 'inline' for better UX.",
+    "@app.on_event startup/shutdown deprecated - migrate to lifespan handlers.",
+    "server.py at ~660 lines; consider splitting into routers (auth/goalkeepers/reports/pdf) for maintainability.",
+    "Registo.js addAction uses window.scrollTo with smooth behavior which can cause flaky quick interactions - fine for humans but worth noting."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin joaocoelhofutsal@gmail.com / leoes2011 (from /app/memory/test_credentials.md) - works",
+  "seed_data_creation": "TEST_UI3_GK and TEST_DIALOG_GK were cleaned up after testing. TEST_GK_Auto is cleaned up by pytest fixture teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New schema for goalkeepers: strong_points/weak_points are List[{text, source}]. Backend tests updated. Frontend: on compact viewports the sticky save button overlaps add-action-btn. For Playwright reliability, use JS-dispatched click (element.click() via page.evaluate) instead of page.click(force=True) when interacting with buttons under the sticky footer - real users need padding fix. Court/quick sync verified. Trends fraction rendering: 'Falhou 60% dos passes em geral (3/5).'",
+  "rca of the issue": "Sticky footer overlap: sticky bottom bar (save-report-btn) is not accounted for by scrollable content; add-action-btn CTA is placed inline just before the footer with no bottom padding on the outer container. On viewports where the action-block is taller than the viewport minus the sticky footer height, the sticky footer visually overlays the CTA. Reproduction: viewport 760x1200 -> /registo -> scroll to Adicionar ação -> footer covers it. Fix: pb-24 (or equivalent min-height spacer) on registo-page container OR conditionally show sticky save only when actions.length>0."
+}
