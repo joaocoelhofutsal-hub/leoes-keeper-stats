@@ -7,6 +7,7 @@ import Login from "@/pages/Login";
 import Registo from "@/pages/Registo";
 import BaseDados from "@/pages/BaseDados";
 import DadosGerais from "@/pages/DadosGerais";
+import Treino from "@/pages/Treino";
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -32,6 +33,7 @@ function App() {
             <Route path="/registo" element={<Protected><Registo /></Protected>} />
             <Route path="/base-dados" element={<Protected><BaseDados /></Protected>} />
             <Route path="/dados-gerais" element={<Protected><DadosGerais /></Protected>} />
+            <Route path="/treino" element={<Protected><Treino /></Protected>} />
             <Route path="*" element={<Navigate to="/registo" replace />} />
           </Routes>
           <Toaster position="top-center" richColors />

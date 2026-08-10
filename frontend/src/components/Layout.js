@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { ClipboardList, Database, LogOut, BarChart3 } from "lucide-react";
+import { ClipboardList, Database, LogOut, BarChart3, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Layout({ children }) {
@@ -19,6 +19,7 @@ export function Layout({ children }) {
     { to: "/registo", label: "Registo", icon: ClipboardList },
     { to: "/base-dados", label: "Base de Dados", icon: Database },
     { to: "/dados-gerais", label: "Dados Gerais", icon: BarChart3 },
+    { to: "/treino", label: "Treino", icon: Zap },
   ];
 
   const doLogout = async () => { await logout(); navigate("/login"); };
