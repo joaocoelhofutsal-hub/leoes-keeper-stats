@@ -11,9 +11,9 @@ export function SelectGrid({ label, options, value, onChange, multi = false, col
     }
   };
   return (
-    <div className="space-y-2" data-testid={testid}>
-      <div className="text-xs font-bold uppercase tracking-[0.15em] text-[#0F3B43]">{label}</div>
-      <div className={cn("grid gap-2", cols)}>
+    <div className="space-y-1" data-testid={testid}>
+      <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0F3B43]">{label}</div>
+      <div className={cn("grid gap-1.5", cols)}>
         {options.map((opt) => (
           <button
             type="button"
@@ -21,9 +21,9 @@ export function SelectGrid({ label, options, value, onChange, multi = false, col
             data-testid={`${testid}-${opt.replace(/\s+/g, "-").toLowerCase()}`}
             onClick={() => toggle(opt)}
             className={cn(
-              "select-tile min-h-[46px] rounded-lg border-2 px-2 py-1.5 text-[11px] sm:text-sm font-semibold leading-tight text-center break-words",
+              "select-tile min-h-[34px] rounded-md border px-1.5 py-1 text-[11px] sm:text-xs font-semibold leading-tight text-center break-words",
               isSelected(opt)
-                ? "bg-[#0C3B1E] text-white border-[#0C3B1E] shadow-md"
+                ? "bg-[#0C3B1E] text-white border-[#0C3B1E] shadow-sm"
                 : "bg-white text-[#0C3B1E] border-gray-200 hover:border-[#0C3B1E]"
             )}
           >

@@ -17,8 +17,8 @@ import {
 import { Plus, Trash2, Save, Minus } from "lucide-react";
 
 const Section = ({ title, children }) => (
-  <section className="rounded-xl border border-gray-200 p-3 sm:p-4 bg-white space-y-3">
-    {title && <h2 className="font-cond text-xl font-bold uppercase text-[#0C3B1E]">{title}</h2>}
+  <section className="rounded-xl border border-gray-200 p-2.5 sm:p-3 bg-white space-y-2.5">
+    {title && <h2 className="font-cond text-lg font-bold uppercase text-[#0C3B1E]">{title}</h2>}
     {children}
   </section>
 );
@@ -88,15 +88,15 @@ export default function Registo() {
   };
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto pb-28" data-testid="registo-page">
+    <div className="space-y-3 max-w-5xl mx-auto pb-28" data-testid="registo-page">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="font-cond text-3xl sm:text-4xl font-extrabold uppercase text-[#0C3B1E]">Registo</h1>
+        <h1 className="font-cond text-2xl sm:text-3xl font-extrabold uppercase text-[#0C3B1E]">Registo</h1>
         <div className="text-sm text-muted-foreground">Ações: <span className="font-bold text-[#0C3B1E]">{actions.length}</span></div>
       </div>
 
       {/* General */}
       <Section title="Relatório">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           <div className="space-y-1">
             <Label className="text-xs">Guarda-redes</Label>
             <select value={gkId} onChange={(e) => onSelectGk(e.target.value)} data-testid="gk-select"
@@ -126,19 +126,19 @@ export default function Registo() {
       </Section>
 
       {/* Action block */}
-      <div id="action-block" className="rounded-xl border-2 border-[#0C3B1E]/25 p-3 sm:p-4 bg-white space-y-4">
-        <h2 className="font-cond text-xl font-bold uppercase text-[#0C3B1E]">Nova ação de jogo</h2>
+      <div id="action-block" className="rounded-xl border-2 border-[#0C3B1E]/25 p-2.5 sm:p-3 bg-white space-y-3">
+        <h2 className="font-cond text-lg font-bold uppercase text-[#0C3B1E]">Nova ação de jogo</h2>
 
         <SelectGrid label="Situação" options={SITUACOES} value={action.situation} testid="sel-situacao"
           onChange={(v) => setAction({ ...action, situation: v })} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-2">
             <CourtZone value={action.zone} onChange={(v) => setAction({ ...action, zone: v })} />
             <SelectGrid label="Zona (rápido)" options={ZONAS} value={action.zone} testid="sel-zona"
               onChange={(v) => setAction({ ...action, zone: v })} cols="grid-cols-2 sm:grid-cols-3" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <CourtDistance value={action.distance} onChange={(v) => setAction({ ...action, distance: v })} />
             <SelectGrid label="Distância (rápido)" options={DISTANCIAS} value={action.distance} testid="sel-distancia"
               onChange={(v) => setAction({ ...action, distance: v })} cols="grid-cols-2 sm:grid-cols-3" />
@@ -155,13 +155,13 @@ export default function Registo() {
           onChange={(v) => setAction({ ...action, followup: v })} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
 
         {/* Evaluation */}
-        <div className="space-y-2">
-          <div className="text-xs font-bold uppercase tracking-[0.15em] text-[#0F3B43]">Avaliação do treinador</div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0F3B43]">Avaliação do treinador</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {AVALIACOES.map((av) => (
               <button type="button" key={av.key} data-testid={`sel-avaliacao-${av.key}`}
                 onClick={() => setAction({ ...action, evaluation: action.evaluation === av.key ? "" : av.key })}
-                className="select-tile min-h-[46px] rounded-lg border-2 font-bold uppercase text-xs sm:text-sm flex items-center justify-center"
+                className="select-tile min-h-[34px] rounded-md border-2 font-bold uppercase text-[11px] sm:text-xs flex items-center justify-center"
                 style={{
                   backgroundColor: action.evaluation === av.key ? av.color : "#fff",
                   borderColor: av.color, color: action.evaluation === av.key ? "#fff" : av.color,
@@ -187,7 +187,7 @@ export default function Registo() {
         </div>
 
         <Button onClick={addAction} data-testid="add-action-btn"
-          className="w-full h-12 bg-[#0F3B43] hover:bg-[#0b2d33] text-white font-bold uppercase tracking-wide">
+          className="w-full h-11 bg-[#0F3B43] hover:bg-[#0b2d33] text-white font-bold uppercase tracking-wide">
           <Plus className="mr-2" size={18} /> Adicionar ação
         </Button>
       </div>
@@ -231,19 +231,19 @@ export default function Registo() {
 
       {/* Offensive */}
       <Section title="Ações ofensivas (toca para adicionar)">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {OFFENSIVE_BUTTONS.map((b) => {
             const ok = b.tone === "ok";
             return (
-              <div key={b.key} className={`rounded-xl border-2 p-2 flex flex-col items-center ${ok ? "border-green-300" : "border-red-300"}`}>
+              <div key={b.key} className={`rounded-lg border p-1.5 flex flex-col items-center ${ok ? "border-green-300" : "border-red-300"}`}>
                 <button type="button" onClick={() => bumpOff(b.key, 1)} data-testid={`off-add-${b.key}`}
-                  className={`w-full min-h-[40px] rounded-lg text-[11px] sm:text-sm font-bold text-white ${ok ? "bg-green-600 hover:bg-green-700" : "bg-red-500 hover:bg-red-600"}`}>
+                  className={`w-full min-h-[32px] rounded-md text-[11px] font-bold text-white ${ok ? "bg-green-600 hover:bg-green-700" : "bg-red-500 hover:bg-red-600"}`}>
                   {b.label}
                 </button>
-                <div className="flex items-center gap-3 mt-1">
+                <div className="flex items-center gap-2 mt-1">
                   <button type="button" onClick={() => bumpOff(b.key, -1)} data-testid={`off-minus-${b.key}`}
-                    className="w-7 h-7 rounded-md border flex items-center justify-center text-gray-500"><Minus size={14} /></button>
-                  <span data-testid={`off-count-${b.key}`} className="font-bold text-lg w-6 text-center">{offensive[b.key]}</span>
+                    className="w-6 h-6 rounded-md border flex items-center justify-center text-gray-500"><Minus size={13} /></button>
+                  <span data-testid={`off-count-${b.key}`} className="font-bold text-base w-6 text-center">{offensive[b.key]}</span>
                 </div>
               </div>
             );
