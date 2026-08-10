@@ -88,6 +88,6 @@ export const SEG_SHORT = {
 };
 
 export const COMPONENTES = [
-  "Velocidade", "Força", "Potência", "Agilidade", "Coordenação", "Reação",
-  "Técnica", "Resistência", "Equilíbrio", "Tomada de decisão", "Deslocamento", "Aquecimento",
+  "Potência", "Agilidade", "Força", "Velocidade de reação",
+  "Mobilidade", "Ativação", "Coordenação",
 ];

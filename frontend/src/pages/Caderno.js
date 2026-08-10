@@ -9,7 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { COMPONENTES } from "@/lib/constants";
-import { Plus, Pencil, Trash2, FileText, Dumbbell, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, Dumbbell, Check, Upload } from "lucide-react";
 
 export default function Caderno() {
   const [exercises, setExercises] = useState([]);
@@ -18,7 +18,7 @@ export default function Caderno() {
   const [selected, setSelected] = useState([]); // exercise ids for unit
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ title: "", description: "", components: [] });
+  const [form, setForm] = useState({ title: "", description: "", components: [], image: "" });
   const [unit, setUnit] = useState({ title: "", date: new Date().toISOString().slice(0, 10), notes: "" });
 
   const loadComponents = () => api.get("/exercises/components").then((r) => setComponents(r.data)).catch(() => {});
@@ -29,8 +29,16 @@ export default function Caderno() {
   useEffect(() => { load(""); loadComponents(); }, []);
   useEffect(() => { load(filter); }, [filter]);
 
-  const openNew = () => { setEditId(null); setForm({ title: "", description: "", components: [] }); setDialogOpen(true); };
-  const openEdit = (e) => { setEditId(e.id); setForm({ title: e.title, description: e.description || "", components: e.components || [] }); setDialogOpen(true); };
+  const openNew = () => { setEditId(null); setForm({ title: "", description: "", components: [], image: "" }); setDialogOpen(true); };
+  const openEdit = (e) => { setEditId(e.id); setForm({ title: e.title, description: e.description || "", components: e.components || [], image: e.image || "" }); setDialogOpen(true); };
+
+  const onImageFile = (file) => {
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) { toast.error("Imagem demasiado grande (máx 4MB)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, image: reader.result }));
+    reader.readAsDataURL(file);
+  };
 
   const toggleComp = (c) => setForm((f) => ({ ...f, components: f.components.includes(c) ? f.components.filter((x) => x !== c) : [...f.components, c] }));
 
@@ -109,6 +117,7 @@ export default function Caderno() {
                   <span key={c} className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#0C3B1E]/10 text-[#0C3B1E]">{c}</span>
                 ))}
               </div>
+              {e.image && <img src={e.image} alt={e.title} data-testid={`ex-img-${e.id}`} className="w-full max-h-56 object-contain rounded-lg border border-gray-200 mt-2 bg-white" />}
               <p className="text-sm text-muted-foreground mt-2 leading-snug">{e.description}</p>
             </div>
           );
@@ -139,6 +148,17 @@ export default function Caderno() {
           <div className="space-y-3">
             <div className="space-y-1"><Label>Título</Label><Input value={form.title} data-testid="ex-title" onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div className="space-y-1"><Label>Descrição</Label><Textarea rows={3} value={form.description} data-testid="ex-description" onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+            <div className="space-y-1">
+              <Label>Imagem / esquema</Label>
+              {form.image && <img src={form.image} alt="esquema" className="w-full max-h-48 object-contain rounded-lg border border-gray-200 bg-white" />}
+              <div className="flex gap-2">
+                <label className="inline-flex items-center gap-2 px-3 h-9 rounded-md border border-gray-300 text-sm font-medium cursor-pointer hover:bg-gray-50" data-testid="ex-image-label">
+                  <Upload size={15} /> {form.image ? "Alterar imagem" : "Carregar imagem"}
+                  <input type="file" accept="image/*" className="hidden" data-testid="ex-image-input" onChange={(e) => onImageFile(e.target.files?.[0])} />
+                </label>
+                {form.image && <Button type="button" variant="outline" className="h-9 text-red-600" data-testid="ex-image-remove" onClick={() => setForm({ ...form, image: "" })}>Remover</Button>}
+              </div>
+            </div>
             <div className="space-y-1">
               <Label>Componentes</Label>
               <div className="flex flex-wrap gap-1.5">

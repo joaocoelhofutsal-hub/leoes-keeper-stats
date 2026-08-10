@@ -142,6 +142,7 @@ class ExerciseIn(BaseModel):
     title: str
     description: Optional[str] = ""
     components: List[str] = []
+    image: Optional[str] = ""
 
 
 class TrainingUnitIn(BaseModel):
@@ -871,6 +872,23 @@ async def unit_pdf(uid: str, request: Request):
     elems.append(it)
 
     elems.append(Paragraph("EXERCÍCIOS", h2))
+    from PIL import Image as PILImage
+
+    def img_flow(b64):
+        try:
+            raw = b64.split(",", 1)[1] if b64.startswith("data:") else b64
+            data = base64.b64decode(raw)
+            bio = io.BytesIO(data)
+            pil = PILImage.open(bio)
+            w, h = pil.size
+            ratio = (h / w) if w else 0.6
+            bio.seek(0)
+            iw = 78 * mm
+            ih = min(iw * ratio, 62 * mm)
+            return RLImage(bio, width=iw, height=ih)
+        except Exception:
+            return None
+
     for i, e in enumerate(ex_docs, 1):
         comps = ", ".join(e.get("components", []) or [])
         elems.append(Paragraph(f"<b>{i}. {e.get('title','')}</b>", normal))
@@ -878,7 +896,12 @@ async def unit_pdf(uid: str, request: Request):
             elems.append(Paragraph(f"<font color='#0F3B43'>Componentes:</font> {comps}", small))
         if e.get("description"):
             elems.append(Paragraph(e["description"], normal))
-        elems.append(Spacer(1, 4))
+        if e.get("image"):
+            fl = img_flow(e["image"])
+            if fl:
+                elems.append(Spacer(1, 2))
+                elems.append(fl)
+        elems.append(Spacer(1, 6))
     if not ex_docs:
         elems.append(Paragraph("Sem exercícios nesta unidade.", small))
 
