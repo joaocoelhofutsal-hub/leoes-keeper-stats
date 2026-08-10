@@ -491,6 +491,47 @@ async def export_data(user: dict = Depends(get_current_user)):
     return {"goalkeepers": gks, "reports": reports}
 
 
+# ---------- Insights (dados gerais) ----------
+@api_router.get("/insights/general")
+async def insights_general(user: dict = Depends(get_current_user)):
+    from collections import Counter
+    reports = await db.reports.find().to_list(5000)
+    gk_count = await db.goalkeepers.count_documents({})
+    total_actions = 0
+    eval_counter = Counter()
+    sit_counter = Counter()
+    by_sit = {}
+    off = {"passes_ok": 0, "passes_err": 0, "shots_ok": 0, "shots_err": 0, "repos_ok": 0, "repos_err": 0}
+    for r in reports:
+        o = r.get("offensive", {}) or {}
+        for k in off:
+            off[k] += int(o.get(k, 0) or 0)
+        for a in r.get("actions", []):
+            total_actions += 1
+            ev = a.get("evaluation")
+            if ev:
+                eval_counter[ev] += 1
+            s = a.get("situation")
+            if s:
+                sit_counter[s] += 1
+                c = by_sit.setdefault(s, Counter())
+                for d in (a.get("decisions") or []):
+                    c[d] += 1
+    decisions_by_situation = []
+    for s, c in sorted(by_sit.items(), key=lambda kv: -sit_counter[kv[0]]):
+        tot = sum(c.values())
+        items = [{"name": d, "count": n, "pct": round(n / tot * 100) if tot else 0} for d, n in c.most_common()]
+        decisions_by_situation.append({"situation": s, "total": sit_counter[s], "decisions": items})
+    return {
+        "goalkeepers": gk_count,
+        "reports": len(reports),
+        "total_actions": total_actions,
+        "evaluation": [{"name": k, "value": eval_counter.get(k, 0)} for k in ["verde", "amarelo", "vermelho", "cinzenta"]],
+        "offensive_totals": off,
+        "decisions_by_situation": decisions_by_situation,
+    }
+
+
 # ---------- PDF ----------
 EVAL_COLORS = {"cinzenta": "#9CA3AF", "verde": "#22C55E", "amarelo": "#EAB308", "vermelho": "#EF4444"}
 

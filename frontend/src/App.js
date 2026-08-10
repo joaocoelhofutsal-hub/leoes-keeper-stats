@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import Login from "@/pages/Login";
 import Registo from "@/pages/Registo";
 import BaseDados from "@/pages/BaseDados";
+import DadosGerais from "@/pages/DadosGerais";
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -30,6 +31,7 @@ function App() {
             <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
             <Route path="/registo" element={<Protected><Registo /></Protected>} />
             <Route path="/base-dados" element={<Protected><BaseDados /></Protected>} />
+            <Route path="/dados-gerais" element={<Protected><DadosGerais /></Protected>} />
             <Route path="*" element={<Navigate to="/registo" replace />} />
           </Routes>
           <Toaster position="top-center" richColors />

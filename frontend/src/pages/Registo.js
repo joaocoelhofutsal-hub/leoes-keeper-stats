@@ -14,7 +14,7 @@ import {
   SITUACOES, TECNICAS, DECISOES, AVALIACOES, OFFENSIVE_BUTTONS,
   EMPTY_ACTION, EMPTY_OFFENSIVE, SIT_SHORT, SEG_SHORT,
 } from "@/lib/constants";
-import { Plus, Trash2, Save, Minus } from "lucide-react";
+import { Plus, Trash2, Save, Minus, Undo2 } from "lucide-react";
 
 const AVAL_ORDER = ["cinzenta", "vermelho", "amarelo", "verde"];
 
@@ -67,6 +67,8 @@ export default function Registo() {
 
   const removeAction = (i) => setActions((a) => a.filter((_, idx) => idx !== i));
   const bumpOff = (k, d) => setOffensive((o) => ({ ...o, [k]: Math.max(0, o[k] + d) }));
+  const clearLast = () => { setActions((a) => a.slice(0, -1)); toast.success("Última ação removida."); };
+  const clearAll = () => { setActions([]); setOffensive({ ...EMPTY_OFFENSIVE }); setAction({ ...EMPTY_ACTION }); toast.success("Ações limpas. Podes recomeçar."); };
 
   const needFeedback = action.evaluation === "amarelo" || action.evaluation === "vermelho";
   const avalLabel = AVALIACOES.find((x) => x.key === action.evaluation)?.label;
@@ -230,6 +232,14 @@ export default function Registo() {
       {/* Actions TABLE */}
       {actions.length > 0 && (
         <Section title={`Tabela de ações (${actions.length})`}>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={clearLast} data-testid="clear-last-btn" className="h-9">
+              <Undo2 size={15} className="mr-1.5" /> Limpar última ação
+            </Button>
+            <Button variant="outline" onClick={clearAll} data-testid="clear-all-btn" className="h-9 text-red-600 border-red-200 hover:bg-red-50">
+              <Trash2 size={15} className="mr-1.5" /> Limpar todas
+            </Button>
+          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
