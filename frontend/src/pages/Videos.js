@@ -57,6 +57,20 @@ export default function Videos() {
   const openEdit = (v) => { setEditId(v.id); setForm({ title: v.title, url: v.url, description: v.description || "", components: v.components || [] }); setDialogOpen(true); };
   const toggleComp = (c) => setForm((f) => ({ ...f, components: f.components.includes(c) ? f.components.filter((x) => x !== c) : [...f.components, c] }));
 
+  const fetchTitle = async (url) => {
+    if (!url) return;
+    let endpoint = null;
+    if (/youtu\.?be/.test(url)) endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    else if (/vimeo\.com/.test(url)) endpoint = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`;
+    if (!endpoint) return;
+    try {
+      const res = await fetch(endpoint);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.title) setForm((f) => (f.title.trim() ? f : { ...f, title: data.title }));
+    } catch { /* ignore */ }
+  };
+
   const save = async () => {
     if (!form.title.trim()) { toast.error("Título obrigatório."); return; }
     if (!form.url.trim()) { toast.error("Link do vídeo obrigatório."); return; }
@@ -127,8 +141,8 @@ export default function Videos() {
             <DialogDescription>Cola o link do vídeo (YouTube, Vimeo ou ficheiro .mp4), escolhe as componentes e escreve uma descrição.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1"><Label>Título</Label><Input value={form.title} data-testid="video-title" onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div className="space-y-1"><Label>Link do vídeo</Label><Input value={form.url} data-testid="video-url" placeholder="https://youtube.com/... ou https://.../video.mp4" onChange={(e) => setForm({ ...form, url: e.target.value })} /></div>
+            <div className="space-y-1"><Label>Título <span className="text-muted-foreground font-normal">(preenche sozinho a partir do link)</span></Label><Input value={form.title} data-testid="video-title" placeholder="Preenchido automaticamente pelo vídeo" onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div className="space-y-1"><Label>Link do vídeo</Label><Input value={form.url} data-testid="video-url" placeholder="https://youtube.com/... ou https://.../video.mp4" onChange={(e) => setForm({ ...form, url: e.target.value })} onBlur={(e) => fetchTitle(e.target.value)} /></div>
             <div className="space-y-1"><Label>Descrição</Label><Textarea rows={3} value={form.description} data-testid="video-description" onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
             <div className="space-y-1">
               <Label>Componentes</Label>
