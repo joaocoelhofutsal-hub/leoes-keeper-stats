@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { ClipboardList, Database, LogOut, BarChart3, Zap, Dumbbell } from "lucide-react";
+import { ClipboardList, Database, LogOut, BarChart3, Zap, Users, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Layout({ children }) {
@@ -18,9 +18,10 @@ export function Layout({ children }) {
   const nav = [
     { to: "/registo", label: "Registo", icon: ClipboardList },
     { to: "/base-dados", label: "Base de Dados", icon: Database },
+    { to: "/comparar", label: "Comparar", icon: Users },
     { to: "/dados-gerais", label: "Dados Gerais", icon: BarChart3 },
     { to: "/treino", label: "Treino", icon: Zap },
-    { to: "/caderno", label: "Caderno", icon: Dumbbell },
+    { to: "/videos", label: "Vídeos", icon: Video },
   ];
 
   const doLogout = async () => { await logout(); navigate("/login"); };

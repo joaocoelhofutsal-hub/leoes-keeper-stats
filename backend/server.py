@@ -45,6 +45,13 @@ def _oid(v):
 PyObjectId = Annotated[str, BeforeValidator(_oid)]
 
 
+def _as_oid(v: str) -> ObjectId:
+    try:
+        return ObjectId(v)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Identificador inválido.")
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
@@ -143,6 +150,24 @@ class ExerciseIn(BaseModel):
     description: Optional[str] = ""
     components: List[str] = []
     image: Optional[str] = ""
+
+
+class BulkExItem(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    components: List[str] = []
+
+
+class BulkExIn(BaseModel):
+    items: List[BulkExItem] = []
+    guess: bool = True
+
+
+class VideoIn(BaseModel):
+    title: str
+    url: str
+    description: Optional[str] = ""
+    components: List[str] = []
 
 
 class TrainingUnitIn(BaseModel):
@@ -599,13 +624,162 @@ async def create_exercise(data: ExerciseIn, user: dict = Depends(get_current_use
 
 @api_router.put("/exercises/{eid}")
 async def update_exercise(eid: str, data: ExerciseIn, user: dict = Depends(get_current_user)):
-    await db.exercises.update_one({"_id": ObjectId(eid)}, {"$set": data.model_dump()})
+    res = await db.exercises.update_one({"_id": _as_oid(eid)}, {"$set": data.model_dump()})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Exercício não encontrado.")
     return {"id": eid, **data.model_dump()}
 
 
 @api_router.delete("/exercises/{eid}")
 async def delete_exercise(eid: str, user: dict = Depends(get_current_user)):
-    await db.exercises.delete_one({"_id": ObjectId(eid)})
+    await db.exercises.delete_one({"_id": _as_oid(eid)})
+    return {"ok": True}
+
+
+COMPONENT_KEYWORDS = {
+    "Potência": ["potência", "potencia", "explosiv", "salto", "pliom", "impulsão", "impulsao"],
+    "Agilidade": ["agilidade", "mudança de direção", "mudanca de direcao", "escada", "skipping", "deslocament"],
+    "Força": ["força", "forca", "core", "abdominal", "agachament", "resistência", "resistencia"],
+    "Velocidade de reação": ["reação", "reacao", "reflexo", "estímulo", "estimulo", "sinal", "luz", "cores", "reativ", "resposta"],
+    "Mobilidade": ["mobilidade", "alongament", "flexibilidade", "amplitude"],
+    "Ativação": ["ativação", "ativacao", "aqueciment", "warm", "ativaç"],
+    "Coordenação": ["coordenação", "coordenacao", "óculo", "oculo", "manual", "ritmo", "malabar"],
+}
+
+
+def guess_components(text: str) -> List[str]:
+    t = (text or "").lower()
+    out = []
+    for comp, kws in COMPONENT_KEYWORDS.items():
+        if any(k in t for k in kws):
+            out.append(comp)
+    return out
+
+
+@api_router.post("/exercises/bulk")
+async def bulk_exercises(data: BulkExIn, user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    created = 0
+    for it in data.items:
+        title = (it.title or "").strip()
+        if not title:
+            continue
+        comps = it.components or (guess_components(f"{title} {it.description or ''}") if data.guess else [])
+        await db.exercises.insert_one({
+            "title": title[:120], "description": it.description or "",
+            "components": comps, "image": "", "created_at": now,
+        })
+        created += 1
+    return {"created": created}
+
+
+@api_router.post("/exercises/import-doc")
+async def import_doc(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    import subprocess
+    import tempfile
+    import shutil
+    from shutil import which as shutil_which
+    import pymupdf
+
+    raw = await file.read()
+    name = (file.filename or "").lower()
+    tmpdir = tempfile.mkdtemp()
+    titles = []
+    pdf_path = None
+
+    try:
+        if name.endswith(".pdf"):
+            pdf_path = os.path.join(tmpdir, "in.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(raw)
+        elif name.endswith(".pptx"):
+            pptx_path = os.path.join(tmpdir, "in.pptx")
+            with open(pptx_path, "wb") as f:
+                f.write(raw)
+            # slide titles via python-pptx
+            try:
+                from pptx import Presentation
+                prs = Presentation(pptx_path)
+                for slide in prs.slides:
+                    t = ""
+                    try:
+                        if slide.shapes.title and slide.shapes.title.text.strip():
+                            t = slide.shapes.title.text.strip()
+                    except Exception:
+                        t = ""
+                    if not t:
+                        for sh in slide.shapes:
+                            if sh.has_text_frame and sh.text_frame.text.strip():
+                                t = sh.text_frame.text.strip().split("\n")[0]
+                                break
+                    titles.append(t)
+            except Exception as e:
+                logger.warning(f"pptx title extraction failed: {e}")
+                titles = []
+            # render via LibreOffice if available
+            soffice_bin = shutil_which("soffice") or shutil_which("libreoffice")
+            if not soffice_bin:
+                raise HTTPException(status_code=400, detail="Para importar .pptx exporta primeiro como PDF no PowerPoint (Ficheiro > Exportar > PDF) e carrega o PDF.")
+            try:
+                subprocess.run([soffice_bin, "--headless", "--convert-to", "pdf", "--outdir", tmpdir, pptx_path],
+                               check=True, timeout=180)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Falha a converter PPTX: {e}. Exporta como PDF e tenta novamente.")
+            pdfs = [f for f in os.listdir(tmpdir) if f.lower().endswith(".pdf")]
+            if not pdfs:
+                raise HTTPException(status_code=400, detail="Não foi possível renderizar o PPTX. Exporta como PDF e tenta novamente.")
+            pdf_path = os.path.join(tmpdir, pdfs[0])
+        else:
+            raise HTTPException(status_code=400, detail="Formato não suportado. Carrega um PDF ou um .pptx.")
+
+        doc = pymupdf.open(pdf_path)
+        now = datetime.now(timezone.utc).isoformat()
+        created = 0
+        for i in range(doc.page_count):
+            pix = doc[i].get_pixmap(dpi=110)
+            img = "data:image/png;base64," + base64.b64encode(pix.tobytes("png")).decode()
+            title = (titles[i] if i < len(titles) and titles[i] else f"Exercício {i + 1}")[:120]
+            comps = guess_components(title)
+            await db.exercises.insert_one({
+                "title": title, "description": "", "components": comps,
+                "image": img, "created_at": now,
+            })
+            created += 1
+        doc.close()
+        return {"created": created}
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------- Training videos ----------
+@api_router.get("/videos")
+async def list_videos(component: Optional[str] = None, user: dict = Depends(get_current_user)):
+    q = {"components": component} if component else {}
+    rows = await db.videos.find(q).sort("created_at", -1).to_list(1000)
+    for r in rows:
+        r["id"] = str(r.pop("_id"))
+    return rows
+
+
+@api_router.post("/videos")
+async def create_video(data: VideoIn, user: dict = Depends(get_current_user)):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    res = await db.videos.insert_one(doc)
+    return {"id": str(res.inserted_id), **data.model_dump()}
+
+
+@api_router.put("/videos/{vid}")
+async def update_video(vid: str, data: VideoIn, user: dict = Depends(get_current_user)):
+    res = await db.videos.update_one({"_id": _as_oid(vid)}, {"$set": data.model_dump()})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado.")
+    return {"id": vid, **data.model_dump()}
+
+
+@api_router.delete("/videos/{vid}")
+async def delete_video(vid: str, user: dict = Depends(get_current_user)):
+    await db.videos.delete_one({"_id": _as_oid(vid)})
     return {"ok": True}
 
 

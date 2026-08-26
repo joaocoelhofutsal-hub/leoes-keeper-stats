@@ -1,0 +1,17 @@
+{
+  "short_name": "GR Leões",
+  "name": "Leões de Porto Salvo · Análise de Guarda-Redes",
+  "description": "Estatísticas e análise de guarda-redes de futsal.",
+  "icons": [
+    { "src": "favicon.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "start_url": "/registo",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0C3B1E",
+  "background_color": "#0C3B1E"
+}

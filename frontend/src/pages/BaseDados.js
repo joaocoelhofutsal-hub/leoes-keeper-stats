@@ -250,20 +250,13 @@ export default function BaseDados() {
             <ProfileCharts d={profile.distributions} />
 
             <section className="rounded-2xl border border-gray-200 p-5 bg-white" data-testid="training-history">
-              <h2 className="font-cond text-2xl font-bold uppercase text-[#0F3B43] mb-3">Histórico de treino (reação)</h2>
+              <h2 className="font-cond text-2xl font-bold uppercase text-[#0F3B43] mb-3">Treino de reação</h2>
               {training.length === 0 ? (
                 <div className="text-sm text-muted-foreground">Sem sessões de treino. Vai ao separador "Treino", seleciona este guarda-redes e realiza um teste.</div>
               ) : (
-                <div className="space-y-2">
-                  {training.map((t) => (
-                    <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-200 text-sm" data-testid={`training-row-${t.id}`}>
-                      <span className="px-2 py-0.5 rounded-full bg-[#0C3B1E]/10 text-[#0C3B1E] font-bold uppercase text-[11px]">{t.mode}</span>
-                      <span>Média <b className="text-[#0C3B1E]">{t.avg_ms}ms</b></span>
-                      <span>Melhor <b className="text-green-600">{t.best_ms}ms</b></span>
-                      <span className="text-muted-foreground">· {t.rounds} sinais · {t.too_soon} cedo demais</span>
-                      <span className="ml-auto text-xs text-muted-foreground">{(t.created_at || "").slice(0, 10)}</span>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-2 gap-3 max-w-md" data-testid="reaction-summary">
+                  <StatCard label="Melhor resultado" value={(() => { const a = training.map((t) => t.best_ms).filter(Boolean); return a.length ? `${Math.min(...a)} ms` : "—"; })()} />
+                  <StatCard label="Resultado médio" value={`${Math.round(training.reduce((s, t) => s + (t.avg_ms || 0), 0) / training.length)} ms`} />
                 </div>
               )}
             </section>

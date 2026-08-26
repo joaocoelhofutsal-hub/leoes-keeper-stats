@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 5 testing: /api/videos CRUD backend (11 pytest tests, all passed), UI end-to-end of Vídeos module (create with YouTube embed, component tags, filters, edit, delete), BaseDados reaction-training summary (Rodrigo Prazeres shows only 'Melhor resultado' 412 ms / 'Resultado médio' 665 ms; Daniel Osuji shows empty state), navigation (nav-vídeos present, Caderno removed, /caderno redirects to /registo). Auth playbook spot-checks: bcrypt $2b$ hash, httpOnly cookies, explicit CORS origin with credentials. All test data cleaned (videos collection = 0).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/login", "issue": "No brute-force lockout: 6 consecutive wrong-password attempts all return 401 and the correct password still succeeds immediately after. Playbook expects lockout after 5 failures."},
+      {"endpoint": "DELETE /api/videos/{id}", "issue": "Returns 200 {ok:true} even for a non-existent (valid ObjectId) id — no 404, so client cannot detect stale deletes."},
+      {"endpoint": "POST/PUT /api/videos", "issue": "No validation of title/url (empty strings accepted) and no URL format validation; only frontend guards it."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Registo (relatório) / date fields", "issues": ["Uses native browser date input (input type=date) instead of the shadcn calendar/date-picker component — inconsistent with the rest of the design system (pre-existing, not part of this iteration)"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration5.py", "/app/test_reports/pytest/pytest_iteration5.xml"],
+  "action_items": [
+    "Optional: add brute-force lockout (5 failed logins) per auth playbook",
+    "Optional: return 404 on DELETE /api/videos/{id} when id does not exist",
+    "Optional: guard BaseDados reaction summary against sessions with all-falsy best_ms (Math.min(...[]) would render 'Infinity ms')"
+  ],
+  "critical_code_review_comments": [
+    "BaseDados.js:258 — Math.min(...training.map(t => t.best_ms).filter(Boolean)) yields Infinity if every session lacks best_ms; add a fallback ('—').",
+    "Videos.js remove() has no try/catch: a failing DELETE shows the success toast path only after the await throws (unhandled promise rejection); wrap in try/catch like save().",
+    "server.py VideoIn has no field constraints (min_length on title/url); backend accepts empty payload values."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration5.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created and deleted TEST_ videos via API and UI; videos collection verified empty (0 docs) at end.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "joaocoelhofutsal@gmail.com / leoes2011 (admin)",
+  "context_for_next_testing_agent": "Reaction training data lives at GET /api/goalkeepers/{id}/training (not /training-sessions). Only Rodrigo Prazeres has sessions. Nav testids are accent-aware (nav-vídeos); wait for [data-testid='logout-btn'] before querying nav, otherwise selectors can miss during initial render. Video component testids use lowercased/hyphenated PT labels (vcomp-velocidade-de-reação, vfilter-tático).",
+  "rca_of_the_issue": "No functional defects reproduced this iteration. Two initial test 'failures' were assertion artifacts (CSS text-transform: uppercase makes inner_text uppercase, and a nav assertion executed before layout render), not app bugs."
+}

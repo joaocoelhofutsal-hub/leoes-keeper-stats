@@ -91,3 +91,8 @@ export const COMPONENTES = [
   "Potência", "Agilidade", "Força", "Velocidade de reação",
   "Mobilidade", "Ativação", "Coordenação",
 ];
+
+export const VIDEO_COMPONENTES = [
+  "Técnica", "Coordenação", "Agilidade", "Força",
+  "Tático", "Velocidade de reação", "Potência", "Jogo de pés",
+];
