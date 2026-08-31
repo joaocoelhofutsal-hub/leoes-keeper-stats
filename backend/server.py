@@ -563,11 +563,14 @@ def _metric_from(actions, off, field, value, field2="", value2=""):
     if not field or not value:
         return None
     if field == "offensive":
-        if value not in OFF_MAP:
-            return None
-        okk, errk = OFF_MAP[value]
-        ok = int(off.get(okk, 0) or 0)
-        err = int(off.get(errk, 0) or 0)
+        vals = [value] + ([value2] if field2 == "offensive" and value2 else [])
+        ok = 0
+        err = 0
+        for v in vals:
+            if v in OFF_MAP:
+                okk, errk = OFF_MAP[v]
+                ok += int(off.get(okk, 0) or 0)
+                err += int(off.get(errk, 0) or 0)
         count = ok + err
         pct = round(ok / count * 100) if count else 0
         return {"count": count, "success": ok, "pct": pct}

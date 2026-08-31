@@ -99,7 +99,11 @@ export default function SubJogos() {
   const fieldDef = dialog ? METRIC_FIELDS.find((f) => f.field === (dialog.topic.field || "")) : null;
   const valueOptions = (fieldDef?.options || []).map((o) => (typeof o === "string" ? { value: o, label: o } : o));
   const fieldDef2 = dialog ? METRIC_FIELDS.find((f) => f.field === (dialog.topic.field2 || "")) : null;
-  const valueOptions2 = (fieldDef2?.options || []).filter(() => (dialog?.topic.field2 || "") !== "offensive").map((o) => (typeof o === "string" ? { value: o, label: o } : o));
+  const isOff = (dialog?.topic.field || "") === "offensive";
+  const field2Options = [METRIC_FIELDS[0], ...METRIC_FIELDS.filter((f) => f.field && (isOff ? f.field === "offensive" : f.field !== "offensive"))];
+  const valueOptions2 = (fieldDef2?.options || [])
+    .map((o) => (typeof o === "string" ? { value: o, label: o } : o))
+    .filter((o) => (dialog?.topic.field2 || "") !== "offensive" || o.value !== (dialog?.topic.value || ""));
 
   return (
     <div className="space-y-4" data-testid="sub-jogos-page">
@@ -214,7 +218,7 @@ export default function SubJogos() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label>Fonte de dados</Label>
-                  <Select value={dialog.topic.field || NONE} onValueChange={(v) => setDialog({ ...dialog, topic: { ...dialog.topic, field: v === NONE ? "" : v, value: "" } })}>
+                  <Select value={dialog.topic.field || NONE} onValueChange={(v) => setDialog({ ...dialog, topic: { ...dialog.topic, field: v === NONE ? "" : v, value: "", field2: "", value2: "" } })}>
                     <SelectTrigger data-testid="sj-field"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {METRIC_FIELDS.map((f) => <SelectItem key={f.field || NONE} value={f.field || NONE}>{f.label}</SelectItem>)}
@@ -235,11 +239,11 @@ export default function SubJogos() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Cruzar com (opcional)</Label>
+                  <Label className="text-xs">{isOff ? "Somar com (opcional)" : "Cruzar com (opcional)"}</Label>
                   <Select value={dialog.topic.field2 || NONE} onValueChange={(v) => setDialog({ ...dialog, topic: { ...dialog.topic, field2: v === NONE ? "" : v, value2: "" } })}>
                     <SelectTrigger data-testid="sj-field2"><SelectValue placeholder="Sem 2º filtro" /></SelectTrigger>
                     <SelectContent>
-                      {METRIC_FIELDS.filter((f) => f.field !== "offensive").map((f) => <SelectItem key={f.field || NONE} value={f.field || NONE}>{f.field ? f.label : "Sem 2º filtro"}</SelectItem>)}
+                      {field2Options.map((f) => <SelectItem key={f.field || NONE} value={f.field || NONE}>{f.field ? f.label : "Sem 2º filtro"}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -266,7 +270,7 @@ export default function SubJogos() {
                 </Select>
               </div>
 
-              <p className="text-xs text-muted-foreground">Podes cruzar dois filtros (ex.: Situação "Remate" + Decisão "Ocupar espaço"). Sucesso = ações verdes + cinzentas. Escolhe o GR de referência para a comparação "vs melhor" (usa os dados que tiveres desse GR).</p>
+              <p className="text-xs text-muted-foreground">Cruza dois filtros de ações (ex.: Situação "Remate" + Decisão "Ocupar espaço") — conta só o que cumpre ambos. Com "Ações ofensivas" podes SOMAR categorias (ex.: Passes + Remates), juntando as tentativas e os sucessos. Sucesso = verdes + cinzentas. Escolhe o GR de referência para a comparação (usa os dados que tiveres desse GR).</p>
 
               <div className="space-y-1"><Label>Nota</Label>
                 <Textarea rows={2} value={dialog.topic.note} data-testid="sj-note" onChange={(e) => setDialog({ ...dialog, topic: { ...dialog.topic, note: e.target.value } })} /></div>
