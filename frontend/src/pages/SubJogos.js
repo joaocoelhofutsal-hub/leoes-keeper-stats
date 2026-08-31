@@ -35,6 +35,17 @@ const METRIC_FIELDS = [
 ];
 
 const EVAL_HEX = { verde: "#22C55E", amarelo: "#EAB308", vermelho: "#EF4444", cinzenta: "#9CA3AF" };
+const EVAL_SCORE = { verde: 100, cinzenta: 70, amarelo: 40, vermelho: 10 };
+const notaColor = (p) => (p >= 80 ? "#22C55E" : p >= 60 ? "#EAB308" : "#EF4444");
+function subgameNota(topics) {
+  const scores = [];
+  (topics || []).forEach((t) => {
+    if (t.metric_result && t.metric_result.count > 0) scores.push(t.metric_result.pct);
+    else if (t.evaluation && EVAL_SCORE[t.evaluation] != null) scores.push(EVAL_SCORE[t.evaluation]);
+  });
+  if (!scores.length) return null;
+  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+}
 const NONE = "__none__";
 
 export default function SubJogos() {
@@ -115,7 +126,12 @@ export default function SubJogos() {
           {SUBJOGOS.map((sg) => (
             <section key={sg} data-testid={`sj-card-${sg.replace(/\s+/g, "-").toLowerCase()}`} className="rounded-2xl border-2 border-[#0F3B43]/25 p-4 bg-white space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="font-cond text-xl font-extrabold uppercase text-[#0F3B43]">{sg}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-cond text-xl font-extrabold uppercase text-[#0F3B43]">{sg}</h2>
+                  {(() => { const nota = subgameNota(subgames[sg]); return nota != null ? (
+                    <span data-testid={`sj-nota-${sg.replace(/\s+/g, "-").toLowerCase()}`} className="px-2 py-0.5 rounded-full text-white font-bold text-xs" style={{ background: notaColor(nota) }}>Nota {nota}%</span>
+                  ) : null; })()}
+                </div>
                 <Button size="sm" variant="outline" onClick={() => openNew(sg)} data-testid={`sj-add-${sg.replace(/\s+/g, "-").toLowerCase()}`} className="border-[#0C3B1E] text-[#0C3B1E] h-8">
                   <Plus size={14} className="mr-1" /> Tópico
                 </Button>

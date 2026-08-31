@@ -60,7 +60,6 @@ export default function Dashboard() {
   const bestSuccess = (eligible.length ? eligible : squad.filter((g) => g.total_actions > 0)).slice().sort((a, b) => b.success_pct - a.success_pct)[0];
   const withReaction = squad.filter((g) => g.best_reaction_ms);
   const bestReaction = withReaction.slice().sort((a, b) => a.best_reaction_ms - b.best_reaction_ms)[0];
-  const ranked = squad.slice().sort((a, b) => (b.total_actions > 0) - (a.total_actions > 0) || b.success_pct - a.success_pct);
 
   return (
     <div className="space-y-5" data-testid="dashboard-page">
@@ -93,36 +92,6 @@ export default function Dashboard() {
           ) : <div className="text-sm text-muted-foreground mt-1">Sem sessões de treino.</div>}
         </div>
       </div>
-
-      <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden" data-testid="squad-table">
-        <div className="px-4 py-3 border-b border-gray-200 font-cond text-xl font-bold uppercase text-[#0F3B43]">Ranking do plantel</div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-[11px] uppercase text-muted-foreground">
-              <tr>
-                <th className="text-left px-4 py-2">#</th>
-                <th className="text-left px-4 py-2">Guarda-redes</th>
-                <th className="text-right px-4 py-2">Jogos</th>
-                <th className="text-right px-4 py-2">Ações</th>
-                <th className="text-right px-4 py-2">% Sucesso</th>
-                <th className="text-right px-4 py-2">Melhor reação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranked.map((g, i) => (
-                <tr key={g.id} data-testid={`squad-row-${g.id}`} className="border-t border-gray-100">
-                  <td className="px-4 py-2 text-muted-foreground">{i + 1}</td>
-                  <td className="px-4 py-2 font-semibold text-[#0C3B1E]">{g.name} {g.team ? <span className="text-xs text-muted-foreground font-normal">({g.team})</span> : null}</td>
-                  <td className="px-4 py-2 text-right">{g.games}</td>
-                  <td className="px-4 py-2 text-right">{g.total_actions}</td>
-                  <td className="px-4 py-2 text-right font-bold" style={{ color: g.total_actions ? pctColor(g.success_pct) : "#9CA3AF" }}>{g.total_actions ? `${g.success_pct}%` : "—"}</td>
-                  <td className="px-4 py-2 text-right">{g.best_reaction_ms ? `${g.best_reaction_ms} ms` : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-4" data-testid="references-board">
         <div className="flex items-center justify-between mb-1">
