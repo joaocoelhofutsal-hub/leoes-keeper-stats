@@ -27,6 +27,11 @@ const METRIC_FIELDS = [
   { field: "distance", label: "Distância", options: DISTANCIAS },
   { field: "followup", label: "Seguimento", options: SEGUIMENTOS },
   { field: "finish_type", label: "Finalização", options: FINALIZACOES },
+  { field: "offensive", label: "Ações ofensivas", options: [
+    { value: "passes", label: "Passes" },
+    { value: "shots", label: "Remates" },
+    { value: "repos", label: "Reposições" },
+  ] },
 ];
 
 const EVAL_HEX = { verde: "#22C55E", amarelo: "#EAB308", vermelho: "#EF4444", cinzenta: "#9CA3AF" };
@@ -81,6 +86,7 @@ export default function SubJogos() {
   };
 
   const fieldDef = dialog ? METRIC_FIELDS.find((f) => f.field === (dialog.topic.field || "")) : null;
+  const valueOptions = (fieldDef?.options || []).map((o) => (typeof o === "string" ? { value: o, label: o } : o));
 
   return (
     <div className="space-y-4" data-testid="sub-jogos-page">
@@ -127,10 +133,26 @@ export default function SubJogos() {
                           <button onClick={() => removeTopic(sg, i)} data-testid={`sj-del-${t.id}`} className="text-red-500 hover:text-red-700"><Trash2 size={14} /></button>
                         </div>
                         {m && (
-                          <div className="mt-1.5 flex items-center gap-3 text-[12px]" data-testid={`sj-metric-${t.id}`}>
-                            <span className="px-2 py-0.5 rounded-full bg-[#0C3B1E]/10 text-[#0C3B1E] font-bold">{m.count} ações</span>
-                            <span className="font-bold text-green-700">{m.pct}% sucesso</span>
-                            <span className="text-muted-foreground">({m.success}/{m.count} verdes)</span>
+                          <div className="mt-1.5 space-y-1 text-[12px]" data-testid={`sj-metric-${t.id}`}>
+                            <div className="flex items-center gap-3">
+                              <span className="px-2 py-0.5 rounded-full bg-[#0C3B1E]/10 text-[#0C3B1E] font-bold">{m.count} ações</span>
+                              <span className="font-bold text-green-700">{m.pct}% sucesso</span>
+                              <span className="text-muted-foreground">({m.success}/{m.count})</span>
+                            </div>
+                            {t.benchmark && (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {t.benchmark.is_best ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#22C55E] text-white font-bold uppercase text-[10px]" data-testid={`sj-autoeval-${t.id}`}>Melhor da competição</span>
+                                ) : (
+                                  <>
+                                    {t.auto_eval && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-white font-bold uppercase text-[10px]" style={{ background: EVAL_HEX[t.auto_eval] }} data-testid={`sj-autoeval-${t.id}`}>vs melhor</span>
+                                    )}
+                                    <span className="text-muted-foreground">Melhor: <b className="text-[#0C3B1E]">{t.benchmark.best_pct}%</b>{t.benchmark.best_count ? ` (${t.benchmark.best_count})` : ""}{t.benchmark.best_gk ? ` · ${t.benchmark.best_gk}` : ""}</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                         {t.note && <p className="text-xs text-muted-foreground mt-1">{t.note}</p>}
@@ -187,12 +209,12 @@ export default function SubJogos() {
                     onValueChange={(v) => setDialog({ ...dialog, topic: { ...dialog.topic, value: v === NONE ? "" : v } })}>
                     <SelectTrigger data-testid="sj-value"><SelectValue placeholder="Escolher" /></SelectTrigger>
                     <SelectContent>
-                      {(fieldDef?.options || []).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                      {valueOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">Ex.: fonte "Tomada de decisão" + valor "Ocupar espaço" → mostra quantas defesas e a % de sucesso quando o GR decide ocupar espaço.</p>
+              <p className="text-xs text-muted-foreground">Ex.: fonte "Tomada de decisão" + valor "Ocupar espaço" → mostra quantas ações e a % de sucesso quando o GR ocupa espaço. Sucesso = ações verdes + cinzentas (dentro da normalidade). A avaliação "vs melhor" compara com o melhor guarda-redes da competição.</p>
 
               <div className="space-y-1"><Label>Nota</Label>
                 <Textarea rows={2} value={dialog.topic.note} data-testid="sj-note" onChange={(e) => setDialog({ ...dialog, topic: { ...dialog.topic, note: e.target.value } })} /></div>

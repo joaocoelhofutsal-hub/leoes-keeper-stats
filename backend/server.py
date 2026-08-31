@@ -541,17 +541,44 @@ async def _all_gk_actions(gid: str):
     return acts
 
 
-def _metric(actions, field, value):
+OFF_KEYS = ["passes_ok", "passes_err", "shots_ok", "shots_err", "repos_ok", "repos_err"]
+SUCCESS_EVALS = ("verde", "cinzenta")
+OFF_MAP = {"passes": ("passes_ok", "passes_err"), "shots": ("shots_ok", "shots_err"), "repos": ("repos_ok", "repos_err")}
+
+
+def _metric_from(actions, off, field, value):
     if not field or not value:
         return None
+    if field == "offensive":
+        if value not in OFF_MAP:
+            return None
+        okk, errk = OFF_MAP[value]
+        ok = int(off.get(okk, 0) or 0)
+        err = int(off.get(errk, 0) or 0)
+        count = ok + err
+        pct = round(ok / count * 100) if count else 0
+        return {"count": count, "success": ok, "pct": pct}
     if field == "decisions":
         matching = [a for a in actions if value in (a.get("decisions") or [])]
     else:
         matching = [a for a in actions if (a.get(field) or "") == value]
     count = len(matching)
-    success = sum(1 for a in matching if a.get("evaluation") == "verde")
+    success = sum(1 for a in matching if a.get("evaluation") in SUCCESS_EVALS)
     pct = round(success / count * 100) if count else 0
     return {"count": count, "success": success, "pct": pct}
+
+
+async def _squad_data():
+    reports = await db.reports.find().to_list(5000)
+    data = {}
+    for r in reports:
+        gid = r.get("goalkeeper_id", "")
+        d = data.setdefault(gid, {"actions": [], "off": {k: 0 for k in OFF_KEYS}})
+        d["actions"].extend(r.get("actions", []) or [])
+        o = r.get("offensive", {}) or {}
+        for k in OFF_KEYS:
+            d["off"][k] += int(o.get(k, 0) or 0)
+    return data
 
 
 @api_router.get("/goalkeepers/{gid}/loose-actions")
@@ -587,10 +614,32 @@ async def del_loose_action(gid: str, aid: str, user: dict = Depends(get_current_
 async def get_subgames(gid: str, user: dict = Depends(get_current_user)):
     doc = await db.subgame_evals.find_one({"goalkeeper_id": gid})
     subgames = (doc or {}).get("subgames", {})
-    actions = await _all_gk_actions(gid)
+    data = await _squad_data()
+    gks = await db.goalkeepers.find().to_list(1000)
+    name_by_id = {str(g["_id"]): g["name"] for g in gks}
+    me = data.get(gid, {"actions": [], "off": {k: 0 for k in OFF_KEYS}})
     for sg, topics in subgames.items():
         for t in topics:
-            t["metric_result"] = _metric(actions, t.get("field"), t.get("value"))
+            mr = _metric_from(me["actions"], me["off"], t.get("field"), t.get("value"))
+            t["metric_result"] = mr
+            t["benchmark"] = None
+            t["auto_eval"] = None
+            if mr and mr["count"] > 0:
+                MIN_BENCH = 3
+                best_pct = -1
+                best_name = None
+                best_count = 0
+                for oid, od in data.items():
+                    om = _metric_from(od["actions"], od["off"], t.get("field"), t.get("value"))
+                    if om and om["count"] >= MIN_BENCH and om["pct"] > best_pct:
+                        best_pct = om["pct"]
+                        best_name = name_by_id.get(oid, "—")
+                        best_count = om["count"]
+                if best_pct >= 0:
+                    is_best = (best_name == name_by_id.get(gid))
+                    ratio = mr["pct"] / best_pct if best_pct > 0 else 1
+                    t["benchmark"] = {"best_pct": best_pct, "best_gk": best_name, "best_count": best_count, "is_best": is_best}
+                    t["auto_eval"] = "verde" if (is_best or ratio >= 0.9) else ("amarelo" if ratio >= 0.7 else "vermelho")
     return {"subgames": subgames}
 
 
@@ -673,6 +722,45 @@ async def insights_general(user: dict = Depends(get_current_user)):
 
 
 # ---------- Training (jogo de reação) ----------
+@api_router.get("/insights/squad")
+async def insights_squad(user: dict = Depends(get_current_user)):
+    gks = await db.goalkeepers.find().sort("name", 1).to_list(1000)
+    reports = await db.reports.find().to_list(5000)
+    training = await db.training.find().to_list(5000)
+    out = []
+    tot_games = 0
+    tot_actions = 0
+    tot_success = 0
+    for g in gks:
+        gid = str(g["_id"])
+        greps = [r for r in reports if r.get("goalkeeper_id") == gid]
+        games = sum(1 for r in greps if not r.get("loose"))
+        acts = [a for r in greps for a in (r.get("actions") or [])]
+        n = len(acts)
+        succ = sum(1 for a in acts if a.get("evaluation") in SUCCESS_EVALS)
+        pct = round(succ / n * 100) if n else 0
+        tr = [t for t in training if t.get("goalkeeper_id") == gid]
+        bests = [t.get("best_ms") for t in tr if t.get("best_ms")]
+        avgs = [t.get("avg_ms") for t in tr if t.get("avg_ms")]
+        out.append({
+            "id": gid, "name": g.get("name", ""), "team": g.get("team", ""),
+            "photo": g.get("photo", ""),
+            "games": games, "total_actions": n, "success_pct": pct,
+            "best_reaction_ms": min(bests) if bests else None,
+            "avg_reaction_ms": round(sum(avgs) / len(avgs)) if avgs else None,
+        })
+        tot_games += games
+        tot_actions += n
+        tot_success += succ
+    totals = {
+        "goalkeepers": len(gks),
+        "games": tot_games,
+        "total_actions": tot_actions,
+        "success_pct": round(tot_success / tot_actions * 100) if tot_actions else 0,
+    }
+    return {"goalkeepers": out, "totals": totals}
+
+
 @api_router.post("/training")
 async def save_training(data: TrainingIn, user: dict = Depends(get_current_user)):
     doc = data.model_dump()

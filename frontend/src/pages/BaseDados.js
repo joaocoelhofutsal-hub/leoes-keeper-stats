@@ -19,7 +19,8 @@ import {
 
 function StatCard({ label, value }) {
   return (
-    <div className="rounded-xl border border-gray-200 p-4 bg-white hover:-translate-y-1 transition-transform">
+    <div className="rounded-xl border border-gray-200 p-4 bg-white hover:-translate-y-1 transition-transform"
+      data-testid={`stat-${String(label).replace(/\s+/g, "-").toLowerCase()}`}>
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="font-cond text-3xl font-extrabold text-[#0C3B1E] mt-1">{value}</div>
     </div>
@@ -94,18 +95,20 @@ export default function BaseDados() {
   const [spText, setSpText] = useState(""); const [spSrc, setSpSrc] = useState("");
   const [wpText, setWpText] = useState(""); const [wpSrc, setWpSrc] = useState("");
   const [training, setTraining] = useState([]);
+  const [loose, setLoose] = useState([]);
 
   const load = () => api.get("/goalkeepers").then((r) => setGks(r.data)).catch(() => {});
   useEffect(() => { load(); }, []);
 
   const openGk = async (g) => {
     setSelected(g);
-    const [p, r, t] = await Promise.all([
+    const [p, r, t, l] = await Promise.all([
       api.get(`/goalkeepers/${g.id}/profile`),
       api.get(`/goalkeepers/${g.id}/reports`),
       api.get(`/goalkeepers/${g.id}/training`),
+      api.get(`/goalkeepers/${g.id}/loose-actions`),
     ]);
-    setProfile(p.data); setReports(r.data); setTraining(t.data);
+    setProfile(p.data); setReports(r.data); setTraining(t.data); setLoose(l.data);
   };
 
   const openNew = () => { setEditId(null); setForm({ name: "", team: "" }); setEditOpen(true); };
@@ -324,6 +327,25 @@ export default function BaseDados() {
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section className="rounded-2xl border border-gray-200 p-5 bg-white" data-testid="profile-loose">
+              <h2 className="font-cond text-2xl font-bold uppercase text-[#0F3B43] mb-1">Ações soltas ({loose.length})</h2>
+              <p className="text-xs text-muted-foreground mb-3">Ações individuais fora de jogos (não contam como relatório). Geridas no separador "Ações".</p>
+              {loose.length === 0 ? (
+                <div className="text-sm text-muted-foreground">Sem ações soltas.</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {loose.map((a) => (
+                    <div key={a.id} data-testid={`profile-loose-${a.id}`} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 border border-gray-200 text-[12px]">
+                      <span className="inline-block w-4 h-4 rounded shrink-0" style={{ backgroundColor: EVAL_HEX[a.evaluation] || "#e5e7eb" }} />
+                      <span className="font-semibold whitespace-nowrap">{a.situation || "—"}</span>
+                      <span className="text-muted-foreground">· {a.technique || "—"} · {a.distance || "s/ dist."} · {(a.decisions || []).join(", ") || "s/ decisão"}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{(a.created_at || "").slice(0, 10)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <Button onClick={() => setConfirmDel({ type: "gk", id: selected.id })} variant="destructive" data-testid="delete-gk-btn">

@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 7 e2e testing of the 5 new changes (Dashboard do Plantel, ações soltas no perfil, fonte 'Ações ofensivas' nos sub-jogos, avaliação comparativa vs melhor GR, sucesso = verdes+cinzentas) plus regressions. Backend: new suite /app/backend/tests/test_iteration7.py — 23/23 passed (insights/squad structure+totals cross-checked against /export, games exclude loose docs, success_pct == verde+cinzenta, offensive metric passes/shots/repos on a deterministic TEST GK: 4/3/75%, 2/1/50%, 2/0/0%, decisions metric proved cinzenta counts as success (2/4=50%), benchmark best_pct/best_gk recomputed independently and matched, auto_eval thresholds 0.9/0.7 matched, loose action does not add report/game but +1 action, auth guards 401, general vs squad consistency). Frontend Playwright: login → /dashboard OK; KPIs 10/19/182/77% and ranking (10 rows) sorted desc with '—' for GKs sem ações, KPI totals == sum of rows, best-success (Jackson Ryan 95%) e best-reaction (Cintra 391ms) corretos; nav-dashboard é o 1º de 9 separadores e todos abrem sem erros de consola; Base de Dados profile-loose recebe a ação criada em /acoes (relatórios 5→5, média 6.8→6.8, total ações 35→36, sem 'Ações soltas' na lista de relatórios); Sub-jogos: fonte 'Ações ofensivas' → Passes 39/74% (benchmark 100% Rodrigo, selo amarelo), Remates 5/80% (verde), Reposições 13/62% (vermelho, benchmark 100% Sukhov), 'Ocupar espaço' 15/80% (amarelo), persistência após reload OK, delete OK. Dados Gerais mostra RELATÓRIOS=19 (o bug da iteração 6 está corrigido). Cleanup feito: db.reports {loose:true} (2) e db.subgame_evals (3) apagados; reports=19, sem GR de teste.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/goalkeepers/{gid}/subgames", "issue": "Benchmark 'melhor da competição' não tem amostra mínima: Sukhov aparece como melhor em Reposições com 1/1 (100%) e Rodrigo Prazeres em Passes com 3/3 (100%), fazendo o Cintra (13 reposições, 62%) ficar VERMELHO contra um GR com 1 tentativa. Sugestão: exigir count mínimo (ex. >=5 ou >= 30% do count do GR avaliado) ou mostrar a amostra do melhor (ex. '100% (1/1)')."},
+      {"endpoint": "GET /api/goalkeepers/{gid}/subgames", "issue": "O benchmark não exclui o próprio GR: o tópico 'Remates' do Cintra mostrou 'Melhor da competição: 80% · Guilherme Cintra' (compara-se consigo mesmo). Deveria excluir o próprio ou indicar 'és o melhor'."},
+      {"endpoint": "GET /api/goalkeepers/{gid}/subgames", "issue": "O(n) de GR: para cada tópico recalcula _metric_from para todos os GR (loop dentro de loop). Com muitos tópicos/GR fica caro; calcular o melhor uma vez por (field,value) e cachear."},
+      {"endpoint": "POST /api/auth/login", "issue": "Continua sem lockout de brute-force (playbook pede bloqueio após 5 falhas). Confirmado por código (não existe contador de tentativas)."},
+      {"endpoint": "PUT /api/goalkeepers/{gid}/subgames", "issue": "SubgamesIn.subgames continua a ser dict cru; o modelo SubgameTopic nunca é usado, logo payloads arbitrários são persistidos sem validação."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "/acoes após navegar para outro separador e voltar", "issue": "A seleção de guarda-redes é reposta para '— Selecionar —' e a lista de ações soltas desaparece; o utilizador tem de reselecionar o GR (dificulta o fluxo registar→ver→apagar). Não é bug funcional, mas é atrito de UX (nenhuma persistência do gkId em estado/URL).", "affected_selectors": ["[data-testid=\"la-gk-select\"]", "[data-testid^=\"la-row-\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "Header (todas as páginas, 1920px)", "issues": ["Bloco da marca continua cortado: 'LEÕES DE PORTO SALVO' quebra em 2 linhas (bounding box y=-6, sai por cima) e o subtítulo 'ANÁLISE DE GUARDA-REDES' fica clipado pelo header h-16 (medido: y+h=70 > 64). Já reportado na iteração 6 e não corrigido.", "Com 9 separadores a nav fica muito cheia; considerar reduzir gaps/rótulos ou menu overflow."]},
+      {"screen": "/dashboard", "issues": ["Empate de ordenação: GR com 0 ações (success_pct=0, mostrado '—') ficam acima/abaixo de GR com ações reais e 0% (Sukhov 0% ficou 9º entre dois '—'); sugerir empurrar sempre os GR sem ações para o fim do ranking.", "Nada indica a amostra do 'Melhor % de sucesso' (Jackson Ryan 95% com apenas 21 ações/1 jogo) — mostrar nº de ações/jogos no cartão daria contexto."]},
+      {"screen": "/sub-jogos", "issues": ["O selo 'VS MELHOR' não diz o valor do rácio nem tem tooltip; utilizador não percebe porque é amarelo vs verde.", "Delete de tópico usa window.confirm (nativo) e não o AlertDialog usado na Base de Dados (inconsistente) — já reportado na it6."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration7.py", "/app/test_reports/pytest/iteration7.xml"],
+  "action_items": [
+    "Sub-jogos benchmark: adicionar amostra mínima (ou mostrar count do melhor) para o best_pct não vir de GR com 1 tentativa; considerar excluir o próprio GR do benchmark.",
+    "Corrigir o header (marca a sair por cima e subtítulo clipado a 1920px) — pendente desde a iteração 6.",
+    "Dashboard: colocar GR sem ações no fim do ranking (empate 0% vs '—').",
+    "Opcional: manter a seleção de GR em /acoes (estado/URL) e validar o payload de /subgames com SubgameTopic; adicionar lockout de login."
+  ],
+  "critical_code_review_comments": [
+    "get_subgames() faz O(tópicos × GR) chamadas a _metric_from e carrega todos os reports (_squad_data) em cada GET — pré-computar o melhor por (field,value) numa passagem única.",
+    "_squad_data() inclui documentos loose (correto para ações) mas o benchmark passa a misturar ações de jogo e soltas sem qualquer indicação na UI; documentar/expôr essa regra.",
+    "server.py continua com 1309 linhas (auth + CRUD + insights + PDF) — dividir em routers (>700 linhas).",
+    "Dashboard.js faz .catch(() => {}) silencioso no fetch de /insights/squad: sem estado de erro/loading, a página mostra zeros indistinguíveis de dados reais (foi exatamente o que se viu no primeiro carregamento do teste)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration7.py", "/app/frontend/src/pages/BaseDados.js (adicionado data-testid=\"stat-<label>\" ao StatCard para testabilidade)"],
+  "success_rate": {"backend": "100% (23/23 pytest)", "frontend": "100% dos fluxos testados (dashboard, perfil+ações soltas, sub-jogos ofensivo/benchmark, 9 separadores, regressões)"},
+  "seed_data_creation": "Temporário: 1 GR TEST_It7_* com 1 relatório determinístico (5 ações, offensive 3/1, 1/1, 0/2) e 6 tópicos de sub-jogo — todos apagados no teardown. 1 ação solta no Guilherme Cintra e 4 tópicos TEST_UI criados via UI — removidos; no fim executado db.reports.delete_many({loose:true}) (2 docs) e db.subgame_evals.delete_many({}) (3 docs). Estado final: reports=19, goalkeepers=10.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "joaocoelhofutsal@gmail.com / leoes2011 (hash $2b$12$ verificado em Mongo; cookies access_token+refresh_token httpOnly verificados; CORS_ORIGINS explícito no .env com allow_credentials=True)",
+  "context_for_next_testing_agent": "Correr: cd /app/backend && python -m pytest tests/test_iteration7.py (pytest.ini usa -n 2 --dist loadscope; serial = -n 0). O suite cria/apaga o seu próprio GR TEST_It7_*. Testids úteis: dashboard (kpi-*, best-success, best-reaction, squad-table, squad-row-<id>), BaseDados (stat-<label> adicionado por mim, profile-loose, profile-loose-<id>, gk-card-<id>), /acoes (la-gk-select, la-situacao-<slug>, la-decisao-<slug> — slug = lowercase com hífens e acentos mantidos, la-avaliacao-<key>, la-add-btn, la-row-<id>, la-del-<id>), sub-jogos (sj-gk-select, sj-add-<slug>, sj-dialog, sj-field/sj-value via role=option, sj-metric-<id>, sj-autoeval-<id>). Nota: os selects de fonte/valor são shadcn Select — abrir e clicar na option com force=True. Itens abertos: benchmark sem amostra mínima, header clipado, sem lockout de login. Limpar sempre db.reports {loose:true} e db.subgame_evals no fim.",
+  "rca_of_the_issue": "Não foram encontradas falhas funcionais nas 5 mudanças. O único risco de correção (benchmark) é de regra de negócio: get_subgames escolhe best_pct pelo maior pct entre todos os GR sem exigir amostra mínima nem excluir o próprio GR, pelo que 1 acerto em 1 tentativa (Sukhov, reposições) define 100% e transforma o auto_eval do GR avaliado em vermelho. Reproduzir: tópico com fonte 'Ações ofensivas'+'Reposições' para Guilherme Cintra (13 tentativas, 62%) → selo vermelho vs Sukhov 100% (1/1)."
+}
