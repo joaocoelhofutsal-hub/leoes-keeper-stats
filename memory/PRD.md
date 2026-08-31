@@ -1,51 +1,41 @@
 # PRD — Leões de Porto Salvo · Análise de Guarda-Redes
 
 ## Problema original
-App web para análise estatística de guarda-redes de futsal do clube Leões de Porto Salvo. Base de dados online centralizada, funciona por link em PC/iPad/tablet (otimizada para meio-ecrã). Páginas: Registo (ações de jogo com botões de seleção visual), Base de Dados (CRUD + perfil automático + tendências), Dados Gerais, Treino (jogos de reação), Caderno (exercícios), Comparar, PDF de relatório. Login simples. Idioma: Português (Portugal).
+App web para análise estatística de guarda-redes de futsal do clube Leões de Porto Salvo. Base de dados online centralizada, PC/iPad/tablet (otimizada para meio-ecrã). Idioma: Português (Portugal).
 
 ## Arquitetura
-- Backend FastAPI + MongoDB (Motor async). Rotas com prefixo /api.
-- Auth JWT via cookies httpOnly (access 12h + refresh 7d), bcrypt.
-- PDF via reportlab. PyMuPDF para renderizar páginas de PDF em imagens (import de exercícios).
+- Backend FastAPI + MongoDB (Motor async). Rotas com prefixo /api. Auth JWT em cookies httpOnly + bcrypt.
+- PDF via reportlab. PyMuPDF para renderizar PDF em imagens (import de exercícios — módulo Caderno removido).
 - Frontend React (CRA/craco) + Tailwind + shadcn/ui + sonner + recharts. Fontes: Barlow Condensed + Manrope.
-- Logo do clube em base64 na coleção `settings`.
+- Logo em base64 na coleção `settings`. Imagens/vídeos: fotos base64; vídeos por link (embed).
 
-## Personas
-- Treinador de guarda-redes: regista ações em treinos/jogos no tablet e analisa perfis.
+## Módulos atuais (nav)
+Registo · Ações (soltas) · Base de Dados · Comparar · Sub-jogos · Dados Gerais · Treino · Vídeos.
+(Caderno de Exercícios foi REMOVIDO a pedido do utilizador.)
 
 ## Requisitos core
-- Registo de ações (Situação, Zona, Distância, Finalização, Técnica, Decisão multi, Seguimento, Avaliação por cor, notas). Ações ofensivas.
-- Base de Dados: CRUD GR, relatórios, pontos fortes/fracos + fonte, perfil automático, tendências (>=3 ocorrências).
-- Dados Gerais (insights do clube). Treino (3 modos de reação + histórico). Caderno (CRUD exercícios + Unidades de Treino + PDF).
-- PDF final e exportação/importação JSON.
+- Registo de ações (Situação, Zona, Distância, Finalização, Técnica, Decisão multi, Seguimento, Avaliação por cor, notas) + ações ofensivas. Guarda relatório + PDF.
+- Base de Dados: CRUD GR, relatórios, pontos fortes/fracos + fonte, perfil automático, tendências (>=3), gráficos. Treino de reação mostra só Melhor + Médio.
+- Comparar dois GR (stats + gráficos). Dados Gerais (insights do clube). Treino (3 modos reação + histórico). Vídeos (link + componentes + descrição).
 
 ## Implementado (2026-06)
-- ✅ Auth JWT + login PT, rotas protegidas, admin seed.
-- ✅ Registo, Base de Dados, perfil + tendências, PDF, export/import JSON.
-- ✅ Seed de 8 guarda-redes. Fotografia por GR.
-- ✅ Dados Gerais. Treino (Velocidade, Cores, Alvos Duplos) + histórico no perfil.
-- ✅ Caderno de exercícios (CRUD + imagem + componentes + Unidade de Treino + PDF).
+- ✅ Auth, Registo, Base de Dados, perfil/tendências/gráficos, PDF, export/import JSON, 8 GR seed, fotos.
+- ✅ Dados Gerais; Treino (Velocidade/Cores/Alvos Duplos) + histórico.
+- ✅ Comparar GR; PWA instalável (manifest, ícones, apple meta, sw.js).
+- ✅ Vídeos de Treino (/videos): link YouTube/Vimeo/.mp4 embebido, 12 componentes, descrição, filtros, CRUD. Título preenche automaticamente via oEmbed.
+- ✅ Perfil: treino de reação mostra só Melhor resultado + Resultado médio.
+- ✅ AÇÕES SOLTAS (/acoes): registar ação individual de um GR sem relatório. Guardadas num report interno com flag `loose:true`. Entram no perfil/trends/total de ações, mas NÃO contam como jogo (excluídas do report_count em list_goalkeepers, gk_reports, compute_profile e insights_general). Endpoints: GET/POST/DELETE /api/goalkeepers/{gid}/loose-actions[/{aid}].
+- ✅ SUB-JOGOS (/sub-jogos): 5 sub-jogos (Defesa da baliza, GR subido, Transição defesa-ataque, Transição ataque-defesa, Bolas paradas). Tópicos com nome, avaliação (cor), nota e métrica opcional (fonte=campo da ação + valor) que calcula count + % sucesso (verde) das ações do GR. Endpoints: GET/PUT /api/goalkeepers/{gid}/subgames; coleção `subgame_evals`; helper `_metric`.
+- ✅ Testado: iteration_4/5/6 (backend 100%, frontend 100%).
 
-## Implementado (2026-06 · iteração import + comparar + PWA)
-- ✅ Caderno recomeçado do zero (0 exercícios). Componentes fixadas nas 7 pedidas: Potência, Agilidade, Força, Velocidade de reação, Mobilidade, Ativação, Coordenação (`constants.js`).
-- ✅ Importar exercícios em lote (`Caderno.js` + backend):
-  - POST /api/exercises/bulk — cria vários a partir de lista de texto ("Título | descrição | componentes"); adivinha componentes por palavras-chave (`guess_components`).
-  - POST /api/exercises/import-doc — upload PDF (renderizado com PyMuPDF, 1 página = 1 exercício com imagem) ou .pptx (best-effort com LibreOffice; se ausente devolve erro 400 amigável em PT a pedir export para PDF).
-- ✅ Página Comparar (`/comparar`, `Comparar.js`): dois GR lado a lado — stats + gráficos comparativos (Avaliações, Técnicas, Seguimento, Zona, Distância). Nav "Comparar" adicionada.
-- ✅ PWA instalável (iPad): `manifest.json`, ícones (favicon/apple-touch/192/512), meta tags Apple + `sw.js` registado no `index.html`. theme_color #0C3B1E.
-- ✅ Robustez: validação de ObjectId inválido (400) e 404 em update de exercício inexistente. DialogDescription (a11y).
-- ✅ Testado: backend 10/10 novos testes + frontend 100% nas 3 funcionalidades (iteration_4).
-
-## Notas de deployment
-- LibreOffice NÃO está garantido no ambiente (nem em produção). O import por PDF (PyMuPDF) é o caminho robusto; PPTX é best-effort.
-- Imagens de exercícios guardadas como data URL base64 no documento MongoDB — atenção ao tamanho para PDFs grandes.
+## Notas técnicas
+- LibreOffice NÃO garantido no ambiente; import de exercícios era via PDF (PyMuPDF). Caderno removido.
+- Loose actions: um documento report por GR com array `actions`; sem cap (pode crescer numa época — backlog).
 
 ## Backlog / próximos (P1/P2)
-- P1: Filtro por época/datas/competição em relatórios, tendências e gráficos.
-- P1: Ajustar importação JSON ao formato da app legada (Edge) — falta exemplo do utilizador.
-- P2: Média de avaliação por situação nos "Dados Gerais".
-- P2: Foto do GR no cabeçalho do PDF.
-- P2: Gráfico de evolução dos tempos de reação por GR.
-- P2: Duração/séries por exercício + tempo total na Unidade de Treino.
-- P2: Ranking de treino (melhores tempos entre GR).
-- P2: Import de exercícios — melhorar deteção de diacríticos no parseList (deixar backend adivinhar).
+- P1: Filtro por época/datas/competição em relatórios, tendências, gráficos e sub-jogos.
+- P1: Importação JSON legado (Edge) — falta exemplo do utilizador.
+- P2: Vídeos por GR (associar ao perfil). Data do melhor tempo de reação no perfil.
+- P2: Ranking de reação entre GR. Evolução dos tempos de reação (linha).
+- P2: Dashboard inicial com KPIs do plantel.
+- P2 (técnico): validar payload subgames com SubgameTopic; login brute-force lockout; dividir server.py em routers (>1200 linhas); paginação/cap nas loose actions; toasts a sobrepor a nav.

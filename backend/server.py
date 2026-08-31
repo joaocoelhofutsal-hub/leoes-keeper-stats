@@ -7,6 +7,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 import logging
 import io
+import uuid
 import base64
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Annotated
@@ -214,6 +215,20 @@ class ReportIn(BaseModel):
     offensive: Offensive = Offensive()
 
 
+class SubgameTopic(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: Optional[str] = ""
+    name: str
+    note: Optional[str] = ""
+    evaluation: Optional[str] = ""
+    field: Optional[str] = ""
+    value: Optional[str] = ""
+
+
+class SubgamesIn(BaseModel):
+    subgames: dict = {}
+
+
 # ---------- Auth routes ----------
 @api_router.post("/auth/register")
 async def register(data: RegisterIn, response: Response):
@@ -259,7 +274,7 @@ async def list_goalkeepers(user: dict = Depends(get_current_user)):
     out = []
     for g in gks:
         gid = str(g["_id"])
-        count = await db.reports.count_documents({"goalkeeper_id": gid})
+        count = await db.reports.count_documents({"goalkeeper_id": gid, "loose": {"$ne": True}})
         out.append({"id": gid, "name": g["name"], "team": g.get("team", ""),
                     "photo": g.get("photo", ""),
                     "strong_points": g.get("strong_points", []),
@@ -339,7 +354,7 @@ async def create_report(data: ReportIn, user: dict = Depends(get_current_user)):
 
 @api_router.get("/goalkeepers/{gid}/reports")
 async def gk_reports(gid: str, user: dict = Depends(get_current_user)):
-    reports = await db.reports.find({"goalkeeper_id": gid}).sort("created_at", -1).to_list(1000)
+    reports = await db.reports.find({"goalkeeper_id": gid, "loose": {"$ne": True}}).sort("created_at", -1).to_list(1000)
     return [serialize_report(r) for r in reports]
 
 
@@ -369,21 +384,25 @@ def _most_common(items):
 
 def compute_profile(reports):
     from collections import Counter
-    total = len(reports)
+    game_reports = [r for r in reports if not r.get("loose")]
+    total = len(game_reports)
     all_actions = []
-    green_counts = []
+    green_game = []
+    game_action_count = 0
     off = {"passes_ok": 0, "passes_err": 0, "shots_ok": 0, "shots_err": 0, "repos_ok": 0, "repos_err": 0}
     for r in reports:
-        acts = r.get("actions", [])
+        acts = r.get("actions", []) or []
         all_actions.extend(acts)
-        green_counts.append(sum(1 for a in acts if a.get("evaluation") == "verde"))
+        if not r.get("loose"):
+            game_action_count += len(acts)
+            green_game.append(sum(1 for a in acts if a.get("evaluation") == "verde"))
         o = r.get("offensive", {}) or {}
         for k in off:
             off[k] += int(o.get(k, 0) or 0)
 
     n_actions = len(all_actions)
-    avg_actions = round(n_actions / total, 1) if total else 0
-    avg_green = round(sum(green_counts) / total, 1) if total else 0
+    avg_actions = round(game_action_count / total, 1) if total else 0
+    avg_green = round(sum(green_game) / total, 1) if total else 0
 
     techniques = [a.get("technique") for a in all_actions]
     decisions = [d for a in all_actions for d in (a.get("decisions") or [])]
@@ -513,6 +532,78 @@ async def gk_profile(gid: str, user: dict = Depends(get_current_user)):
     return compute_profile(reports)
 
 
+# ---------- Loose actions (ações soltas) ----------
+async def _all_gk_actions(gid: str):
+    reports = await db.reports.find({"goalkeeper_id": gid}).to_list(1000)
+    acts = []
+    for r in reports:
+        acts.extend(r.get("actions", []) or [])
+    return acts
+
+
+def _metric(actions, field, value):
+    if not field or not value:
+        return None
+    if field == "decisions":
+        matching = [a for a in actions if value in (a.get("decisions") or [])]
+    else:
+        matching = [a for a in actions if (a.get(field) or "") == value]
+    count = len(matching)
+    success = sum(1 for a in matching if a.get("evaluation") == "verde")
+    pct = round(success / count * 100) if count else 0
+    return {"count": count, "success": success, "pct": pct}
+
+
+@api_router.get("/goalkeepers/{gid}/loose-actions")
+async def get_loose_actions(gid: str, user: dict = Depends(get_current_user)):
+    rep = await db.reports.find_one({"goalkeeper_id": gid, "loose": True})
+    return (rep or {}).get("actions", [])
+
+
+@api_router.post("/goalkeepers/{gid}/loose-actions")
+async def add_loose_action(gid: str, data: Action, user: dict = Depends(get_current_user)):
+    act = data.model_dump()
+    now = datetime.now(timezone.utc).isoformat()
+    act["id"] = str(uuid.uuid4())
+    act["created_at"] = now
+    await db.reports.update_one(
+        {"goalkeeper_id": gid, "loose": True},
+        {"$push": {"actions": act},
+         "$setOnInsert": {"goalkeeper_id": gid, "loose": True,
+                          "session_number": "Ações soltas", "created_at": now, "offensive": {}}},
+        upsert=True,
+    )
+    return act
+
+
+@api_router.delete("/goalkeepers/{gid}/loose-actions/{aid}")
+async def del_loose_action(gid: str, aid: str, user: dict = Depends(get_current_user)):
+    await db.reports.update_one({"goalkeeper_id": gid, "loose": True}, {"$pull": {"actions": {"id": aid}}})
+    return {"ok": True}
+
+
+# ---------- Sub-jogos (sub-game evaluations) ----------
+@api_router.get("/goalkeepers/{gid}/subgames")
+async def get_subgames(gid: str, user: dict = Depends(get_current_user)):
+    doc = await db.subgame_evals.find_one({"goalkeeper_id": gid})
+    subgames = (doc or {}).get("subgames", {})
+    actions = await _all_gk_actions(gid)
+    for sg, topics in subgames.items():
+        for t in topics:
+            t["metric_result"] = _metric(actions, t.get("field"), t.get("value"))
+    return {"subgames": subgames}
+
+
+@api_router.put("/goalkeepers/{gid}/subgames")
+async def save_subgames(gid: str, data: SubgamesIn, user: dict = Depends(get_current_user)):
+    await db.subgame_evals.update_one(
+        {"goalkeeper_id": gid},
+        {"$set": {"goalkeeper_id": gid, "subgames": data.subgames}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
 # ---------- Logo settings ----------
 @api_router.get("/settings/logo")
 async def get_logo(user: dict = Depends(get_current_user)):
@@ -573,7 +664,7 @@ async def insights_general(user: dict = Depends(get_current_user)):
         decisions_by_situation.append({"situation": s, "total": sit_counter[s], "decisions": items})
     return {
         "goalkeepers": gk_count,
-        "reports": len(reports),
+        "reports": sum(1 for r in reports if not r.get("loose")),
         "total_actions": total_actions,
         "evaluation": [{"name": k, "value": eval_counter.get(k, 0)} for k in ["verde", "amarelo", "vermelho", "cinzenta"]],
         "offensive_totals": off,

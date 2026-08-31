@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 6 e2e testing of Ações Soltas (/acoes) and Sub-jogos (/sub-jogos) + regression on existing modules. Backend: new pytest suite /app/backend/tests/test_iteration6.py — 22/22 passed (loose-action CRUD, profile isolation, subgame PUT/GET with metric_result cross-checked on a dedicated deterministic goalkeeper, auth guards, regression endpoints). Frontend: full Playwright flows passed — loose action create/list/persist/delete, validation toasts, 5 sub-game cards, topic dialog (name/avaliação/fonte/valor, value select disabled until fonte chosen), metric shown (13 ações / 85% sucesso / 11/13 verdes), edit, delete, persistence after reload, all 8 nav tabs work. UI integration verified in Base de Dados: after 1 loose action Cintra went Total de ações 31→32 while Nº de relatórios (4) and Média ações/jogo (7.8) stayed unchanged and no 'Ações soltas' row appears in the reports list. All test data cleaned (db.reports loose=2 removed, subgame_evals=3 removed; reports back to 18).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/insights/general", "issue": "Counts loose-action documents as relatórios: returns reports=20 while the sum of per-GK report_count is 18 (2 loose docs). Dados Gerais therefore inflates the number of games, contradicting the 'ações soltas não contam como jogo' rule. Fix: filter {'loose': {'$ne': True}} for the report count (actions may still be counted)."},
+      {"endpoint": "POST /api/auth/login", "issue": "No brute-force lockout: 7 consecutive wrong passwords all returned 401 and the valid login still succeeded immediately (playbook expects lockout after 5 failures)."},
+      {"endpoint": "PUT /api/goalkeepers/{gid}/subgames", "issue": "SubgamesIn.subgames is a raw dict; the declared SubgameTopic model is never used, so arbitrary/unvalidated topic payloads are stored (no length/shape validation on names, fields or values)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Layout header (all pages, >=1280px)", "issues": ["Brand block wraps: 'LEÕES DE PORTO SALVO' breaks over two lines and the subtitle 'ANÁLISE DE GUARDA-REDES' is clipped by the fixed h-16 header (text cut mid-line).", "With 8 nav items the labels wrap onto two lines ('Base de Dados', 'Sub-jogos', 'Dados Gerais'), making the top bar look cramped; consider shorter labels, smaller px gap, or a compact/overflow menu.", "Sonner toasts render centred over the nav bar and visually cover nav items while visible."]},
+      {"screen": "/sub-jogos", "issues": ["Topic delete (sj-del) has no confirmation dialog, unlike Ações Soltas which uses window.confirm — inconsistent and risky for destructive action.", "Ações Soltas delete uses native window.confirm instead of the shadcn AlertDialog used elsewhere (BaseDados)."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration6.py", "/app/test_reports/pytest/iteration6.xml"],
+  "action_items": [
+    "Exclude loose reports from the report count in GET /api/insights/general (Dados Gerais shows 20 instead of 18).",
+    "Add login brute-force lockout (5 failed attempts) per auth playbook.",
+    "Optional: validate subgames payload with the existing SubgameTopic model.",
+    "Fix header layout/overflow (brand subtitle clipped, nav labels wrapping) and align delete confirmations (sub-jogos topic delete has none)."
+  ],
+  "critical_code_review_comments": [
+    "insights_general() reads db.reports.find() without the loose filter used everywhere else — single source of truth for 'game reports' should be a shared query helper to avoid this class of drift.",
+    "/api/export also exports loose docs; verify the import path preserves the loose flag, otherwise re-imported data will be counted as games.",
+    "server.py is 1226 lines (PDF generation + auth + CRUD + insights) — split into routers/modules (>700 line guideline).",
+    "add_loose_action uses upsert+$push correctly, but there is no cap/pagination on the loose actions array; a single document could grow unbounded over a season."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration6.py"],
+  "success_rate": {"backend": "100% (22/22 pytest)", "frontend": "100% of tested flows (acoes, sub-jogos, nav, profile integration)"},
+  "seed_data_creation": "Temporary: 1 TEST_MetricGK goalkeeper with 4 loose actions (deleted in test teardown), loose actions + subgame topics on Guilherme Cintra (all removed; db.reports loose docs and db.subgame_evals wiped, reports=18).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "joaocoelhofutsal@gmail.com / leoes2011 (admin, hash $2b$12$, httpOnly+secure+samesite=none cookies verified)",
+  "context_for_next_testing_agent": "Run: cd /app/backend && python -m pytest tests/test_iteration6.py (uses pytest.ini xdist; the metric cross-check test creates and deletes its own TEST_MetricGK, so it is race-safe). Known open items: insights_general counts loose docs as reports; no login lockout; header layout wraps. Always clean db.reports {loose:true} and db.subgame_evals after testing these modules.",
+  "rca_of_the_issue": "Dados Gerais discrepancy: compute_profile, list_goalkeepers and gk_reports were updated to filter {'loose': {'$ne': True}}, but insights_general (line ~638) still uses db.reports.find() unfiltered, so the synthetic 'Ações soltas' report document is counted as a relatório. Reproduce: POST /api/goalkeepers/{id}/loose-actions then GET /api/insights/general -> reports increases by 1 while the sum of per-GK report_count stays the same."
+}

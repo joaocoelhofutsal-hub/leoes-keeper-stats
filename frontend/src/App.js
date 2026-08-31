@@ -10,6 +10,8 @@ import DadosGerais from "@/pages/DadosGerais";
 import Treino from "@/pages/Treino";
 import Comparar from "@/pages/Comparar";
 import Videos from "@/pages/Videos";
+import AcoesSoltas from "@/pages/AcoesSoltas";
+import SubJogos from "@/pages/SubJogos";
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -38,6 +40,8 @@ function App() {
             <Route path="/treino" element={<Protected><Treino /></Protected>} />
             <Route path="/comparar" element={<Protected><Comparar /></Protected>} />
             <Route path="/videos" element={<Protected><Videos /></Protected>} />
+            <Route path="/acoes" element={<Protected><AcoesSoltas /></Protected>} />
+            <Route path="/sub-jogos" element={<Protected><SubJogos /></Protected>} />
             <Route path="*" element={<Navigate to="/registo" replace />} />
           </Routes>
           <Toaster position="top-center" richColors />
