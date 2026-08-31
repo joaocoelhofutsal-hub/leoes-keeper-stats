@@ -1,28 +1,24 @@
 # PRD — Leões de Porto Salvo · Análise de Guarda-Redes
 
 ## Problema original
-App web para análise estatística de guarda-redes de futsal do clube Leões de Porto Salvo. Base de dados online centralizada, PC/iPad/tablet (otimizada para meio-ecrã). Idioma: Português (Portugal). Objetivo: ferramenta profissional (rendimento, consistência, evolução e comparação entre GR).
+App web para análise estatística de guarda-redes de futsal do clube Leões de Porto Salvo. Base de dados online centralizada, PC/iPad/tablet (meio-ecrã). PT-PT. Ferramenta profissional (rendimento, consistência, evolução, comparação).
 
 ## Arquitetura
-- Backend FastAPI + MongoDB (Motor async). Rotas /api. Auth JWT em cookies httpOnly + bcrypt.
-- PDF via reportlab. PyMuPDF disponível. Frontend React (CRA/craco) + Tailwind + shadcn/ui + sonner + recharts.
-- Fontes: Barlow Condensed + Manrope. Logo em base64 (settings). Vídeos por link (embed).
+- Backend FastAPI + MongoDB (Motor). Rotas /api. Auth JWT em cookies httpOnly + bcrypt.
+- Frontend React (CRA/craco) + Tailwind + shadcn/ui + sonner (toast bottom-right) + recharts. Fontes Barlow Condensed + Manrope. Logo base64 (settings). Vídeos por link.
 
-## Módulos (nav): Dashboard · Registo · Ações (soltas) · Base de Dados · Comparar · Sub-jogos · Dados Gerais · Treino · Vídeos.
-(Caderno de Exercícios foi REMOVIDO a pedido do utilizador.)
+## Módulos (nav): Dashboard · Registo · Ações (soltas) · Base de Dados · Comparar · Sub-jogos · Dados Gerais · Treino · Vídeos. (Caderno REMOVIDO.)
 
-## Implementado
-- Auth, Registo (ações + ofensivas + PDF), Base de Dados (CRUD, perfil, tendências >=3, gráficos, pontos fortes/fracos), export/import JSON, 8+ GR seed, fotos.
-- Dados Gerais (insights clube). Treino de reação (3 modos + histórico; perfil mostra só Melhor + Médio).
-- Comparar dois GR. PWA instalável. Vídeos de Treino (link + 12 componentes + descrição + filtros; título auto via oEmbed).
-- AÇÕES SOLTAS (/acoes): ação individual sem relatório (report interno loose:true). Entram no perfil/trends/total de ações mas NÃO contam como jogo (excluídas de report_count em list_goalkeepers, gk_reports, compute_profile e insights_general). Endpoints /api/goalkeepers/{gid}/loose-actions[/{aid}]. Mostradas no perfil (secção "Ações soltas", separadas dos jogos).
-- SUB-JOGOS (/sub-jogos): 5 sub-jogos (Defesa da baliza, GR subido, Transição def-ataque, Transição ataque-def, Bolas paradas). Tópicos com nome/avaliação/nota + métrica opcional (fonte = campo da ação OU "Ações ofensivas" passes/remates/reposições). Métrica = count + % sucesso. SUCESSO = verde + cinzenta (cinzenta = normalidade). Avaliação comparativa "vs melhor" da competição (benchmark com amostra mínima 3, best_count, is_best="Melhor da competição"); auto_eval verde/amarelo/vermelho por rácio 0.9/0.7. Coleção subgame_evals; helper _metric_from/_squad_data.
-- DASHBOARD (/dashboard): página inicial (login entra aqui). KPIs do plantel (GR, jogos, ações, % sucesso médio verdes+cinzentas), destaques (melhor % sucesso, melhor reação) e ranking (GR sem ações vão para o fim). Endpoint GET /api/insights/squad.
-- Testado: iteration_4..7 (backend 100%, frontend 100%).
+## Implementado (resumo)
+- Auth; Registo (ações + ofensivas + PDF); Base de Dados (CRUD, perfil, tendências, gráficos, pontos fortes/fracos, secção "Ações soltas"); export/import JSON; Dados Gerais; Treino de reação (perfil mostra só Melhor+Médio); Comparar; PWA; Vídeos (link + componentes + descrição, título auto oEmbed).
+- Ações Soltas (/acoes): ação individual sem relatório (report loose:true). Entra no perfil/trends/total ações, NÃO conta como jogo. Endpoints /api/goalkeepers/{gid}/loose-actions[/{aid}].
+- Sub-jogos (/sub-jogos): 5 sub-jogos; tópicos com nome/avaliação/nota + métrica opcional. Fontes: campos da ação + "Ações ofensivas" (passes/remates/reposições). MÉTRICA CRUZADA (2 filtros em AND). Sucesso = verde + cinzenta. Benchmark = GR de REFERÊNCIA escolhido pelo utilizador (benchmark_gk_id) com os mesmos filtros; sem GR escolhido = sem comparação; se o próprio = "Melhor da competição"; selo mostra delta em p.p. (auto_eval verde/amarelo/vermelho por rácio 0.9/0.7). Coleção subgame_evals; helpers _metric_from/_squad_data/_match_action.
+- Dashboard (/dashboard, página inicial): KPIs do plantel; destaques (Melhor % sucesso — exige ≥3 ações e mostra amostra; Melhor reação); ranking (GR sem ações no fim). Secção "Referências por sub-jogo": GR que o utilizador considera melhores por sub-jogo (podem não ser do plantel), com barra de % sucesso quando é GR do plantel. Endpoints GET /api/insights/squad; GET/POST/DELETE /api/references (coleção references).
+
+## Testado: iteration_4..8 (backend 100%, frontend 100%).
 
 ## Backlog / próximos (P1/P2)
-- P1: Filtro por época/datas/competição (relatórios, tendências, gráficos, sub-jogos, dashboard).
-- P1: Importação JSON legado (Edge) — falta exemplo do utilizador.
-- P2: Vídeos por GR (associar ao perfil). Cruzar 2 filtros na métrica do sub-jogo (ex.: situação+decisão).
-- P2: Evolução dos tempos de reação (linha) e data do melhor tempo no perfil.
-- P2 (técnico): validar payload /subgames com SubgameTopic; login brute-force lockout (via integration_expert); dividir server.py em routers (>1300 linhas); pré-computar benchmark por (field,value); manter seleção de GR em /acoes; loading/erro no Dashboard; alinhar confirmações de delete (AlertDialog); afinar overflow da nav com 9 itens.
+- P1: Filtro por época/datas/competição (dashboard, relatórios, tendências, gráficos, sub-jogos).
+- P1: Importação JSON legado (Edge) — falta exemplo.
+- P2: Vídeos por GR (perfil). Evolução dos tempos de reação (linha) + data do melhor tempo. Nota global automática por sub-jogo.
+- P2 (técnico/UX conhecidos): GET /api/goalkeepers devolve fotos base64 (~1.3MB) — atrasa selects/dashboard; criar variante "light" e loading states. Persistir seleção de GR (/acoes e /sub-jogos) em URL/localStorage. Validar payload /subgames com SubgameTopic. Login brute-force lockout (via integration_expert). Dividir server.py em routers (>1300 linhas). Substituir window.confirm por AlertDialog. Header: reverificar clip a 1920px. addRef sem guarda de duplicados; persist() otimista sem rollback em erro.

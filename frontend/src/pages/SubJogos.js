@@ -64,14 +64,14 @@ export default function SubJogos() {
     } catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
   };
 
-  const openNew = (sg) => setDialog({ sg, index: -1, topic: { id: crypto.randomUUID(), name: "", evaluation: "", field: "", value: "", note: "" } });
-  const openEdit = (sg, index, topic) => setDialog({ sg, index, topic: { ...topic } });
+  const openNew = (sg) => setDialog({ sg, index: -1, topic: { id: crypto.randomUUID(), name: "", evaluation: "", field: "", value: "", field2: "", value2: "", benchmark_gk_id: "", note: "" } });
+  const openEdit = (sg, index, topic) => setDialog({ sg, index, topic: { field2: "", value2: "", benchmark_gk_id: "", ...topic } });
 
   const saveTopic = async () => {
     const { sg, index, topic } = dialog;
     if (!topic.name.trim()) { toast.error("Dá um nome ao tópico."); return; }
     const next = { ...subgames, [sg]: [...(subgames[sg] || [])] };
-    const clean = { id: topic.id, name: topic.name.trim(), evaluation: topic.evaluation || "", field: topic.field || "", value: topic.value || "", note: topic.note || "" };
+    const clean = { id: topic.id, name: topic.name.trim(), evaluation: topic.evaluation || "", field: topic.field || "", value: topic.value || "", field2: topic.field2 || "", value2: topic.value2 || "", benchmark_gk_id: topic.benchmark_gk_id || "", note: topic.note || "" };
     if (index === -1) next[sg].push(clean); else next[sg][index] = clean;
     setDialog(null);
     await persist(next);
@@ -87,6 +87,8 @@ export default function SubJogos() {
 
   const fieldDef = dialog ? METRIC_FIELDS.find((f) => f.field === (dialog.topic.field || "")) : null;
   const valueOptions = (fieldDef?.options || []).map((o) => (typeof o === "string" ? { value: o, label: o } : o));
+  const fieldDef2 = dialog ? METRIC_FIELDS.find((f) => f.field === (dialog.topic.field2 || "")) : null;
+  const valueOptions2 = (fieldDef2?.options || []).filter(() => (dialog?.topic.field2 || "") !== "offensive").map((o) => (typeof o === "string" ? { value: o, label: o } : o));
 
   return (
     <div className="space-y-4" data-testid="sub-jogos-page">
@@ -146,9 +148,9 @@ export default function SubJogos() {
                                 ) : (
                                   <>
                                     {t.auto_eval && (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-white font-bold uppercase text-[10px]" style={{ background: EVAL_HEX[t.auto_eval] }} data-testid={`sj-autoeval-${t.id}`}>vs melhor</span>
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-white font-bold uppercase text-[10px]" style={{ background: EVAL_HEX[t.auto_eval] }} data-testid={`sj-autoeval-${t.id}`}>{(m.pct - t.benchmark.best_pct) >= 0 ? `+${m.pct - t.benchmark.best_pct}` : (m.pct - t.benchmark.best_pct)} p.p.</span>
                                     )}
-                                    <span className="text-muted-foreground">Melhor: <b className="text-[#0C3B1E]">{t.benchmark.best_pct}%</b>{t.benchmark.best_count ? ` (${t.benchmark.best_count})` : ""}{t.benchmark.best_gk ? ` · ${t.benchmark.best_gk}` : ""}</span>
+                                    <span className="text-muted-foreground">Referência: <b className="text-[#0C3B1E]">{t.benchmark.best_pct}%</b>{t.benchmark.best_count ? ` (${t.benchmark.best_count})` : ""}{t.benchmark.best_gk ? ` · ${t.benchmark.best_gk}` : ""}</span>
                                   </>
                                 )}
                               </div>
@@ -214,7 +216,41 @@ export default function SubJogos() {
                   </Select>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">Ex.: fonte "Tomada de decisão" + valor "Ocupar espaço" → mostra quantas ações e a % de sucesso quando o GR ocupa espaço. Sucesso = ações verdes + cinzentas (dentro da normalidade). A avaliação "vs melhor" compara com o melhor guarda-redes da competição.</p>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Cruzar com (opcional)</Label>
+                  <Select value={dialog.topic.field2 || NONE} onValueChange={(v) => setDialog({ ...dialog, topic: { ...dialog.topic, field2: v === NONE ? "" : v, value2: "" } })}>
+                    <SelectTrigger data-testid="sj-field2"><SelectValue placeholder="Sem 2º filtro" /></SelectTrigger>
+                    <SelectContent>
+                      {METRIC_FIELDS.filter((f) => f.field !== "offensive").map((f) => <SelectItem key={f.field || NONE} value={f.field || NONE}>{f.field ? f.label : "Sem 2º filtro"}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Valor</Label>
+                  <Select value={dialog.topic.value2 || NONE} disabled={!dialog.topic.field2}
+                    onValueChange={(v) => setDialog({ ...dialog, topic: { ...dialog.topic, value2: v === NONE ? "" : v } })}>
+                    <SelectTrigger data-testid="sj-value2"><SelectValue placeholder="Escolher" /></SelectTrigger>
+                    <SelectContent>
+                      {valueOptions2.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">GR de referência (melhor da competição, opcional)</Label>
+                <Select value={dialog.topic.benchmark_gk_id || NONE} onValueChange={(v) => setDialog({ ...dialog, topic: { ...dialog.topic, benchmark_gk_id: v === NONE ? "" : v } })}>
+                  <SelectTrigger data-testid="sj-benchmark"><SelectValue placeholder="Sem comparação" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Sem comparação</SelectItem>
+                    {gks.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <p className="text-xs text-muted-foreground">Podes cruzar dois filtros (ex.: Situação "Remate" + Decisão "Ocupar espaço"). Sucesso = ações verdes + cinzentas. Escolhe o GR de referência para a comparação "vs melhor" (usa os dados que tiveres desse GR).</p>
 
               <div className="space-y-1"><Label>Nota</Label>
                 <Textarea rows={2} value={dialog.topic.note} data-testid="sj-note" onChange={(e) => setDialog({ ...dialog, topic: { ...dialog.topic, note: e.target.value } })} /></div>

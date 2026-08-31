@@ -46,7 +46,7 @@ function App() {
             <Route path="/sub-jogos" element={<Protected><SubJogos /></Protected>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
-          <Toaster position="top-center" richColors />
+          <Toaster position="bottom-right" richColors />
         </AuthProvider>
       </BrowserRouter>
     </div>

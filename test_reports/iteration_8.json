@@ -1,0 +1,38 @@
+{
+  "summary": "Iteração 8 — teste SÓ FRONTEND das 3 mudanças novas (Playwright, 1920x1080, URL pública). (1) Sub-jogos: login → nav-sub-jogos, sj-gk-select='Guilherme Cintra (LPS)', 'Tópico' em Defesa da baliza abre sj-dialog; criado tópico com fonte Situação=Remate + 2º filtro Tomada de decisão=Ocupar espaço + sj-benchmark='Jaime Arthur' → sj-metric mostrou '12 ações · 92% sucesso (11/12)' e selo sj-autoeval 'VS MELHOR' com 'Melhor: 73% (11) · Jaime Arthur'. Cruzamento coerente: tópico de controlo só com Situação=Remate deu 23 ações/65% (15/23) > 12, logo o 2º filtro está a restringir. Sem benchmark => sem selo (contagem 0) ✓. Editar tópico (rename) ✓ e apagar (window.confirm aceito) ✓. (2) Dashboard: add-reference-btn abre reference-dialog; ref-subgame='GR subido', ref-gk='Jaime Arthur', ref-note preenchida, ref-save-btn → toast 'Referência adicionada.' e ref-item-<id> na coluna ref-col-gr-subido com '29 ações', barra width:86% cor verde rgb(34,197,94) e '86% sucesso · sem reação' (coincide com a linha do ranking Jaime Arthur 86%). Persiste após reload ✓; ref-del-<id> remove e coluna volta a '—' ✓. (3) Regressões: login entra em /dashboard; os 9 separadores abrem (nav-registo, nav-ações, nav-base-de-dados, nav-comparar, nav-sub-jogos, nav-dados-gerais, nav-treino, nav-vídeos, nav-dashboard) sem UM ÚNICO erro de consola em nenhuma execução. Cleanup executado: references=0, subgame_evals=0, reports loose=0; estado final reports=19, goalkeepers=11.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/sub-jogos", "issues": ["Selo 'VS MELHOR' aparece mesmo quando o GR avaliado é MELHOR que o benchmark manual escolhido (92% vs 73% do Jaime Arthur) — o rótulo é enganador; devia dizer 'melhor que a referência' ou mostrar o delta (+19 p.p.). O badge 'Melhor da competição' só aparece via is_best do backend.", "Continua sem tooltip/valor do rácio no selo (reportado na it7).", "Apagar tópico usa window.confirm nativo em vez do AlertDialog usado na Base de Dados (inconsistente, reportado desde it6)."]},
+      {"screen": "/sub-jogos e /dashboard (carregamento)", "issues": ["GET /api/goalkeepers devolve ~1.3 MB (fotos base64 inline). O sj-gk-select fica só com '— Selecionar —' durante vários segundos e o Dashboard mostra zeros; sem spinner/estado de loading o utilizador pensa que não há dados. Recomendo excluir 'photo' na listagem (ou endpoint /goalkeepers?light=1) e adicionar loading state."]},
+      {"screen": "/sub-jogos (após reload)", "issues": ["A seleção de GR não é persistida (input_value vazio após F5) — igual ao atrito já reportado em /acoes; considerar guardar gkId no URL/localStorage."]},
+      {"screen": "Header (todas as páginas, 1920px)", "issues": ["Bloco da marca continua com 'LEÕES DE PORTO SALVO' + subtítulo clipados pelo header h-16 (pendente das iterações 6 e 7)."]},
+      {"screen": "Toast (sonner)", "issues": ["O toast aparece centrado no topo e sobrepõe a barra de navegação (tapa 'Ações'/'Base de Dados' durante ~4s), podendo bloquear cliques na nav."]},
+      {"screen": "/dashboard", "issues": ["'Melhor % de sucesso' passou a ser Rodrigo Prazeres com 100% e apenas 1 ação — falta amostra mínima/indicação do nº de ações (reportado na it7, ainda aberto)."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_8.json"],
+  "action_items": [
+    "Sub-jogos: corrigir o rótulo do selo quando o GR é melhor que o benchmark manual (mostrar delta ou 'acima da referência') e adicionar o valor do rácio/tooltip.",
+    "Performance/UX: tirar as fotos base64 do GET /api/goalkeepers (payload 1.3 MB) e adicionar loading state ao sj-gk-select e ao Dashboard.",
+    "Toast não deve sobrepor a nav (mover para bottom-right ou adicionar offset abaixo do header).",
+    "Pendentes de iterações anteriores: header clipado a 1920px; amostra mínima no 'Melhor % de sucesso' e no benchmark de sub-jogos.",
+    "Opcional: substituir window.confirm por AlertDialog em sub-jogos; persistir seleção de GR no URL."
+  ],
+  "critical_code_review_comments": [
+    "Dashboard.js e SubJogos.js fazem .catch(() => {}) silencioso em /insights/squad, /references e /goalkeepers — sem estado de erro a UI mostra zeros/listas vazias indistinguíveis de dados reais.",
+    "Dashboard.addRef não valida duplicados (é possível adicionar o mesmo GR várias vezes ao mesmo sub-jogo) nem faz optimistic/loading no botão ref-save-btn.",
+    "removeRef não tem try/catch nem confirmação: um 4xx/5xx no DELETE /references/{id} falha silenciosamente (unhandled promise) e o item continua no ecrã.",
+    "SubJogos.persist chama setSubgames antes do PUT e, em caso de erro, não reverte o estado local — a UI mostra dados não persistidos."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "não testado (pedido: só frontend)", "frontend": "100% dos fluxos testados (sub-jogos criar/cruzar/benchmark/editar/apagar, dashboard referências CRUD, 9 separadores, login)"},
+  "seed_data_creation": "Criados via UI: 2 tópicos TEST_UI em Defesa da baliza (Guilherme Cintra) e 1 referência TEST_UI em 'GR subido' — todos apagados pela UI. Cleanup final em Mongo: references.delete_many({}), subgame_evals.delete_many({}) (1 doc), reports.delete_many({loose:true}) (0). Estado final: reports=19, goalkeepers=11.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "joaocoelhofutsal@gmail.com / leoes2011 (login OK, redirect /dashboard)",
+  "context_for_next_testing_agent": "Testids da nav incluem acentos: nav-ações e nav-vídeos (não 'nav-acoes'/'nav-videos'). O sj-gk-select é um <select> nativo (usar select_option com label 'Nome (LPS)'), mas o carregamento demora ~5-10s por causa das fotos base64 — esperar até option count > 1. Selects do diálogo são shadcn: click no trigger + get_by_role('option', name=..., exact=True).click(force=True). window.confirm no delete de tópicos: registar page.on('dialog', accept). Dados usados: Guilherme Cintra Situação=Remate → 23 ações/65%; +Ocupar espaço → 12/92%; Jaime Arthur benchmark 73% (11).",
+  "rca_of_the_issue": "Nenhuma falha funcional nas 3 mudanças. Único achado novo de lógica de apresentação: o selo 'vs melhor' é mostrado sempre que benchmark existe e is_best é falso, mesmo quando o GR avaliado tem % superior ao GR de referência manual (92% vs 73%), o que confunde o utilizador. Também confirmado gargalo de performance: GET /api/goalkeepers devolve 1.3 MB (fotos base64), atrasando o preenchimento do sj-gk-select."
+}

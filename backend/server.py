@@ -229,6 +229,13 @@ class SubgamesIn(BaseModel):
     subgames: dict = {}
 
 
+class ReferenceIn(BaseModel):
+    subgame: str
+    gk_id: Optional[str] = ""
+    name: Optional[str] = ""
+    note: Optional[str] = ""
+
+
 # ---------- Auth routes ----------
 @api_router.post("/auth/register")
 async def register(data: RegisterIn, response: Response):
@@ -546,7 +553,13 @@ SUCCESS_EVALS = ("verde", "cinzenta")
 OFF_MAP = {"passes": ("passes_ok", "passes_err"), "shots": ("shots_ok", "shots_err"), "repos": ("repos_ok", "repos_err")}
 
 
-def _metric_from(actions, off, field, value):
+def _match_action(a, field, value):
+    if field == "decisions":
+        return value in (a.get("decisions") or [])
+    return (a.get(field) or "") == value
+
+
+def _metric_from(actions, off, field, value, field2="", value2=""):
     if not field or not value:
         return None
     if field == "offensive":
@@ -558,10 +571,8 @@ def _metric_from(actions, off, field, value):
         count = ok + err
         pct = round(ok / count * 100) if count else 0
         return {"count": count, "success": ok, "pct": pct}
-    if field == "decisions":
-        matching = [a for a in actions if value in (a.get("decisions") or [])]
-    else:
-        matching = [a for a in actions if (a.get(field) or "") == value]
+    cross = bool(field2) and bool(value2) and field2 != "offensive"
+    matching = [a for a in actions if _match_action(a, field, value) and (not cross or _match_action(a, field2, value2))]
     count = len(matching)
     success = sum(1 for a in matching if a.get("evaluation") in SUCCESS_EVALS)
     pct = round(success / count * 100) if count else 0
@@ -620,25 +631,19 @@ async def get_subgames(gid: str, user: dict = Depends(get_current_user)):
     me = data.get(gid, {"actions": [], "off": {k: 0 for k in OFF_KEYS}})
     for sg, topics in subgames.items():
         for t in topics:
-            mr = _metric_from(me["actions"], me["off"], t.get("field"), t.get("value"))
+            f, v = t.get("field"), t.get("value")
+            f2, v2 = t.get("field2"), t.get("value2")
+            mr = _metric_from(me["actions"], me["off"], f, v, f2, v2)
             t["metric_result"] = mr
             t["benchmark"] = None
             t["auto_eval"] = None
-            if mr and mr["count"] > 0:
-                MIN_BENCH = 3
-                best_pct = -1
-                best_name = None
-                best_count = 0
-                for oid, od in data.items():
-                    om = _metric_from(od["actions"], od["off"], t.get("field"), t.get("value"))
-                    if om and om["count"] >= MIN_BENCH and om["pct"] > best_pct:
-                        best_pct = om["pct"]
-                        best_name = name_by_id.get(oid, "—")
-                        best_count = om["count"]
-                if best_pct >= 0:
-                    is_best = (best_name == name_by_id.get(gid))
-                    ratio = mr["pct"] / best_pct if best_pct > 0 else 1
-                    t["benchmark"] = {"best_pct": best_pct, "best_gk": best_name, "best_count": best_count, "is_best": is_best}
+            bid = t.get("benchmark_gk_id")
+            if mr and mr["count"] > 0 and bid and bid in data:
+                bm = _metric_from(data[bid]["actions"], data[bid]["off"], f, v, f2, v2)
+                if bm and bm["count"] > 0:
+                    is_best = (bid == gid)
+                    ratio = mr["pct"] / bm["pct"] if bm["pct"] > 0 else 1
+                    t["benchmark"] = {"best_pct": bm["pct"], "best_gk": name_by_id.get(bid, "—"), "best_count": bm["count"], "is_best": is_best}
                     t["auto_eval"] = "verde" if (is_best or ratio >= 0.9) else ("amarelo" if ratio >= 0.7 else "vermelho")
     return {"subgames": subgames}
 
@@ -654,6 +659,28 @@ async def save_subgames(gid: str, data: SubgamesIn, user: dict = Depends(get_cur
 
 
 # ---------- Logo settings ----------
+@api_router.get("/references")
+async def list_references(user: dict = Depends(get_current_user)):
+    rows = await db.references.find().sort("created_at", -1).to_list(1000)
+    for r in rows:
+        r["id"] = str(r.pop("_id"))
+    return rows
+
+
+@api_router.post("/references")
+async def create_reference(data: ReferenceIn, user: dict = Depends(get_current_user)):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    res = await db.references.insert_one(doc)
+    return {"id": str(res.inserted_id), **data.model_dump()}
+
+
+@api_router.delete("/references/{rid}")
+async def delete_reference(rid: str, user: dict = Depends(get_current_user)):
+    await db.references.delete_one({"_id": _as_oid(rid)})
+    return {"ok": True}
+
+
 @api_router.get("/settings/logo")
 async def get_logo(user: dict = Depends(get_current_user)):
     s = await db.settings.find_one({"key": "logo"})

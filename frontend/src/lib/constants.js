@@ -92,6 +92,10 @@ export const COMPONENTES = [
   "Mobilidade", "Ativação", "Coordenação",
 ];
 
+export const SUBJOGOS = [
+  "Defesa da baliza", "GR subido", "Transição defesa-ataque", "Transição ataque-defesa", "Bolas paradas",
+];
+
 export const VIDEO_COMPONENTES = [
   "Técnica", "Coordenação", "Agilidade", "Força",
   "Tático", "Velocidade de reação", "Potência", "Jogo de pés",
