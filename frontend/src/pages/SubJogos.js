@@ -81,12 +81,18 @@ export default function SubJogos() {
   const saveTopic = async () => {
     const { sg, index, topic } = dialog;
     if (!topic.name.trim()) { toast.error("Dá um nome ao tópico."); return; }
+    const isNew = index === -1;
     const next = { ...subgames, [sg]: [...(subgames[sg] || [])] };
     const clean = { id: topic.id, name: topic.name.trim(), evaluation: topic.evaluation || "", field: topic.field || "", value: topic.value || "", field2: topic.field2 || "", value2: topic.value2 || "", benchmark_gk_id: topic.benchmark_gk_id || "", note: topic.note || "" };
     if (index === -1) next[sg].push(clean); else next[sg][index] = clean;
     setDialog(null);
     await persist(next);
-    toast.success("Tópico guardado.");
+    if (isNew) {
+      try { await api.post("/subgames/propagate-topic", { subgame: sg, exclude_gk_id: gkId, topic: clean }); } catch { /* ignore */ }
+      toast.success("Tópico guardado e adicionado aos restantes guarda-redes.");
+    } else {
+      toast.success("Tópico guardado.");
+    }
   };
 
   const removeTopic = async (sg, index) => {

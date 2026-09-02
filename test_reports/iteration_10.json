@@ -1,0 +1,52 @@
+{
+  "summary": "Testei end-to-end os novos módulos Microciclo e Exercícios de Recurso (backend + frontend). Backend: 20 testes pytest (auth/cookies, CRUD microcycles, CRUD recurso, filtro por componente, 404/validações, PDF status+conteúdo, payload de imagens grandes) — 19 passaram, 1 falhou (PDF devolve 500 quando uma imagem anexada está corrompida/ilegível). Frontend (Playwright, 1920x1080): login OK; criação de microciclo com treino (número, duração, componente, vídeo, notas, upload de imagem), guardar (POST), reabrir com persistência total (nome+treino+notas+imagem), editar (PUT), Gerar PDF (popup abre PDF), apagar (DELETE) — todos OK. Recurso: criar, listar no grid, filtrar por chips (inclui/exclui corretamente), 'Todas', editar com pré-preenchimento, validação de título obrigatório, apagar — todos OK. Único defeito funcional: robustez do PDF a imagens inválidas. Um problema de design: a navbar transborda mesmo a 1920px e os links Microciclo/Recurso/Sair ficam fora da área visível (exigem scroll horizontal).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/microcycles/{id}/pdf", "issue": "Devolve 500 (OSError: broken data stream when reading image file, reportlab/PIL, server.py:1525 doc.build) se QUALQUER imagem anexada ao treino não for descodificável (ficheiro corrompido, ou formato que o PIL não abre, ex.: HEIC do iPhone). Uma única imagem má impede a geração do PDF todo. img_flow() faz try/except só na abertura, mas passa o BytesIO ao RLImage e a falha só acontece no doc.build, fora do try. Correção: validar/normalizar a imagem no img_flow (pil.load() + converter para RGB e re-encodar em PNG/JPEG num BytesIO novo) e devolver None se falhar; adicionalmente envolver doc.build num try e devolver 400/aviso legível em vez de 500.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "DELETE /api/microcycles/{id} e DELETE /api/recurso-exercises/{id}", "issue": "Devolvem sempre {ok:true} mesmo quando o id não existe (deleted_count não é verificado) — deviam devolver 404 para id inexistente por consistência com PUT/GET."},
+      {"endpoint": "GET /api/microcycles/{id} com id inválido", "issue": "Comportamento aceitável (404/400) mas confirmar que _as_oid nunca levanta 500 com ids não-ObjectId noutras rotas."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Gerar PDF (Microciclo)", "issue": "genPdf faz window.open do endpoint; se o backend devolver 500 (ver bug das imagens inválidas) o utilizador vê uma tab com JSON de erro em vez de um toast/mensagem PT-PT. Recomenda-se buscar o PDF via axios (blob, withCredentials) e mostrar toast de erro em caso de falha.", "affected_selectors": ["[data-testid=\"mc-pdf-btn\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "Header/nav (Layout.js) a 1920x1080", "issues": ["A nav transborda: scrollWidth=1286 vs clientWidth=1009 — os links 'Microciclo', 'Recurso' e o botão 'Sair' ficam clipados fora da zona visível (Microciclo em x=1576..1691 contra navRight=1584) e só são alcançáveis com scroll horizontal, sem qualquer indicação visual de scroll. Sugestão: reduzir padding/labels, agrupar itens num menu 'Mais', ou passar a duas linhas / menu lateral."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration10_microciclo.py",
+    "/app/backend/tests/test_iteration10_pdf_content.py",
+    "/app/backend/tests/test_iteration10_image_limits.py",
+    "/app/test_reports/pytest/iteration10.xml"
+  ],
+  "action_items": [
+    "Corrigir robustez do PDF do microciclo: sanitizar cada imagem base64 (PIL .load() + convert('RGB') + re-save para BytesIO novo) e ignorar as inválidas em vez de rebentar o doc.build (atual 500).",
+    "Tratar erro do PDF no frontend (evitar window.open cru; usar blob + toast de erro PT-PT).",
+    "Resolver o overflow da navbar a 1920px para que Microciclo/Recurso/Sair fiquem visíveis sem scroll horizontal.",
+    "(Opcional) DELETE devolver 404 quando o documento não existe."
+  ],
+  "critical_code_review_comments": [
+    "server.py microcycle_pdf: img_flow devolve RLImage a apontar para o mesmo BytesIO onde o PIL foi aberto lazily; além do risco de stream partilhado, erros de descodificação só surgem em doc.build (fora do try) => 500. Re-encodar sempre a imagem antes de a passar ao reportlab.",
+    "Imagens são guardadas como data-URL base64 dentro do documento do microciclo (db.microcycles). Testei ~6 MB de payload com sucesso, mas várias fotos de telemóvel podem aproximar-se do limite de 16 MB por documento BSON e tornam GET/PUT lentos. Considerar GridFS ou um endpoint de upload separado + redimensionar/comprimir no browser antes do FileReader.",
+    "Frontend Microciclo.js: não há limite de tamanho/quantidade nem compressão nas imagens carregadas (addImages guarda o dataURL inteiro no state e envia no PUT/POST); adicionar validação de tamanho e resize em canvas.",
+    "GET /api/microcycles devolve apenas {id, name} — OK para a lista, mas não há indicação do número de treinos/dias; considerar contagem para melhor UX (não é bug).",
+    "DELETE endpoints ignoram deleted_count (sem 404) — inconsistente com PUT/GET."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration10_microciclo.py",
+    "/app/backend/tests/test_iteration10_pdf_content.py",
+    "/app/backend/tests/test_iteration10_image_limits.py"
+  ],
+  "success_rate": {"backend": "95% (19/20 testes)", "frontend": "100% dos fluxos testados (Microciclo CRUD+PDF, Recurso CRUD+filtros) — 1 questão de design na navbar"},
+  "seed_data_creation": "Nenhum dado de produção tocado. Todos os documentos criados pelos testes (prefixo TEST_ / QA_) foram apagados pelos próprios testes/fixtures via DELETE pelos ids devolvidos. Nenhum delete_many executado.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "joaocoelhofutsal@gmail.com / leoes2011 (de /app/memory/test_credentials.md); cookies httpOnly access_token confirmados no login; endpoints /api/microcycles, /api/recurso-exercises e /api/microcycles/{id}/pdf devolvem 401/403 sem cookie; hash bcrypt em formato $2b$",
+  "context_for_next_testing_agent": "Testes de regressão dos novos módulos estão em /app/backend/tests/test_iteration10_*.py (pytest, cookies de sessão, cleanup por id). test_iteration10_pdf_content.py extrai texto do PDF (ASCII85+Flate) e valida cabeçalho do dia, duração, notas, componente e XObject de imagem — passa com imagem válida. O único teste vermelho é test_pdf_with_corrupt_image_should_not_500 (bug real de robustez). Playwright: fluxos completos de /microciclo (data-testids mc-*) e /recurso validados; usar page.set_input_files em [data-testid=mc-tr-images] com um PNG VÁLIDO (gerar com PIL) — um PNG corrompido faz o PDF devolver 500. Atenção: a nav está clipada a 1920px, Playwright auto-scrolla e o clique funciona, mas get_by_role(...).is_visible() pode devolver False.",
+  "rca_of_the_issue": "PDF 500: em server.py microcycle_pdf, img_flow() descodifica o base64, abre com PIL apenas para ler o tamanho e entrega o MESMO BytesIO ao reportlab RLImage. A descodificação real dos pixels só ocorre em doc.build() (fora do try/except), pelo que qualquer imagem corrompida ou em formato não suportado pelo PIL (ex.: HEIC vindo de iPhone via input accept=image/*) levanta OSError 'broken data stream when reading image file' e devolve 500 para todo o microciclo. Reprodução: POST /api/microcycles com days.Segunda[0].images=[dataURL de PNG corrompido] e depois GET /api/microcycles/{id}/pdf => 500 (traceback em /var/log/supervisor/backend.err.log). Mitigação: re-encodar a imagem (pil.load(); pil.convert('RGB'); save para BytesIO novo) e saltar as inválidas."
+}

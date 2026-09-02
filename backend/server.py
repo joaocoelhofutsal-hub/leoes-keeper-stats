@@ -236,6 +236,24 @@ class ReferenceIn(BaseModel):
     note: Optional[str] = ""
 
 
+class PropagateTopicIn(BaseModel):
+    subgame: str
+    exclude_gk_id: Optional[str] = ""
+    topic: dict = {}
+
+
+class RecursoIn(BaseModel):
+    title: str
+    url: Optional[str] = ""
+    description: Optional[str] = ""
+    components: List[str] = []
+
+
+class MicrocycleIn(BaseModel):
+    name: str
+    days: dict = {}
+
+
 # ---------- Auth routes ----------
 @api_router.post("/auth/register")
 async def register(data: RegisterIn, response: Response):
@@ -661,6 +679,40 @@ async def save_subgames(gid: str, data: SubgamesIn, user: dict = Depends(get_cur
     return {"ok": True}
 
 
+@api_router.post("/subgames/propagate-topic")
+async def propagate_topic(data: PropagateTopicIn, user: dict = Depends(get_current_user)):
+    name = (data.topic.get("name") or "").strip()
+    if not name:
+        return {"added": 0}
+    base = {
+        "name": name, "evaluation": "", "note": "",
+        "field": data.topic.get("field", ""), "value": data.topic.get("value", ""),
+        "field2": data.topic.get("field2", ""), "value2": data.topic.get("value2", ""),
+        "benchmark_gk_id": data.topic.get("benchmark_gk_id", ""),
+    }
+    lname = name.lower()
+    gks = await db.goalkeepers.find().to_list(1000)
+    added = 0
+    for g in gks:
+        gid = str(g["_id"])
+        if gid == data.exclude_gk_id:
+            continue
+        doc = await db.subgame_evals.find_one({"goalkeeper_id": gid})
+        subgames = (doc or {}).get("subgames", {}) or {}
+        topics = subgames.get(data.subgame, []) or []
+        if any((t.get("name", "").strip().lower() == lname) for t in topics):
+            continue
+        topics.append({"id": str(uuid.uuid4()), **base})
+        subgames[data.subgame] = topics
+        await db.subgame_evals.update_one(
+            {"goalkeeper_id": gid},
+            {"$set": {"goalkeeper_id": gid, "subgames": subgames}},
+            upsert=True,
+        )
+        added += 1
+    return {"added": added}
+
+
 # ---------- Logo settings ----------
 @api_router.get("/references")
 async def list_references(user: dict = Depends(get_current_user)):
@@ -681,6 +733,75 @@ async def create_reference(data: ReferenceIn, user: dict = Depends(get_current_u
 @api_router.delete("/references/{rid}")
 async def delete_reference(rid: str, user: dict = Depends(get_current_user)):
     await db.references.delete_one({"_id": _as_oid(rid)})
+    return {"ok": True}
+
+
+# ---------- Microcycles (microciclos) ----------
+@api_router.get("/microcycles")
+async def list_microcycles(user: dict = Depends(get_current_user)):
+    rows = await db.microcycles.find().sort("created_at", -1).to_list(500)
+    return [{"id": str(r["_id"]), "name": r.get("name", "")} for r in rows]
+
+
+@api_router.get("/microcycles/{mid}")
+async def get_microcycle(mid: str, user: dict = Depends(get_current_user)):
+    m = await db.microcycles.find_one({"_id": _as_oid(mid)})
+    if not m:
+        raise HTTPException(status_code=404, detail="Microciclo não encontrado.")
+    return {"id": str(m["_id"]), "name": m.get("name", ""), "days": m.get("days", {})}
+
+
+@api_router.post("/microcycles")
+async def create_microcycle(data: MicrocycleIn, user: dict = Depends(get_current_user)):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    res = await db.microcycles.insert_one(doc)
+    return {"id": str(res.inserted_id), "name": data.name, "days": data.days}
+
+
+@api_router.put("/microcycles/{mid}")
+async def update_microcycle(mid: str, data: MicrocycleIn, user: dict = Depends(get_current_user)):
+    res = await db.microcycles.update_one({"_id": _as_oid(mid)}, {"$set": data.model_dump()})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Microciclo não encontrado.")
+    return {"id": mid, "name": data.name, "days": data.days}
+
+
+@api_router.delete("/microcycles/{mid}")
+async def delete_microcycle(mid: str, user: dict = Depends(get_current_user)):
+    await db.microcycles.delete_one({"_id": _as_oid(mid)})
+    return {"ok": True}
+
+
+# ---------- Exercícios de recurso ----------
+@api_router.get("/recurso-exercises")
+async def list_recurso(component: Optional[str] = None, user: dict = Depends(get_current_user)):
+    q = {"components": component} if component else {}
+    rows = await db.recurso_exercises.find(q).sort("created_at", -1).to_list(1000)
+    for r in rows:
+        r["id"] = str(r.pop("_id"))
+    return rows
+
+
+@api_router.post("/recurso-exercises")
+async def create_recurso(data: RecursoIn, user: dict = Depends(get_current_user)):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    res = await db.recurso_exercises.insert_one(doc)
+    return {"id": str(res.inserted_id), **data.model_dump()}
+
+
+@api_router.put("/recurso-exercises/{rid}")
+async def update_recurso(rid: str, data: RecursoIn, user: dict = Depends(get_current_user)):
+    res = await db.recurso_exercises.update_one({"_id": _as_oid(rid)}, {"$set": data.model_dump()})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Exercício não encontrado.")
+    return {"id": rid, **data.model_dump()}
+
+
+@api_router.delete("/recurso-exercises/{rid}")
+async def delete_recurso(rid: str, user: dict = Depends(get_current_user)):
+    await db.recurso_exercises.delete_one({"_id": _as_oid(rid)})
     return {"ok": True}
 
 
@@ -1295,6 +1416,119 @@ async def unit_pdf(uid: str, request: Request):
     doc.build(elems)
     buf.seek(0)
     filename = ("UT " + (u.get("title", "") or "treino").strip()).strip() + ".pdf"
+    return StreamingResponse(buf, media_type="application/pdf",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@api_router.get("/microcycles/{mid}/pdf")
+async def microcycle_pdf(mid: str, request: Request):
+    await get_current_user(request)
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle, Paragraph,
+                                    Spacer, Image as RLImage, KeepTogether)
+    from PIL import Image as PILImage
+
+    m = await db.microcycles.find_one({"_id": _as_oid(mid)})
+    if not m:
+        raise HTTPException(status_code=404, detail="Microciclo não encontrado.")
+
+    vids = await db.videos.find().to_list(1000)
+    title_by_id = {str(v["_id"]): v.get("title", "") for v in vids}
+
+    DARK_GREEN = colors.HexColor("#0C3B1E")
+    PETROL = colors.HexColor("#0F3B43")
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=15 * mm, bottomMargin=15 * mm,
+                            leftMargin=14 * mm, rightMargin=14 * mm)
+    styles = getSampleStyleSheet()
+    bf = "Helvetica-BoldOblique"
+    title_style = ParagraphStyle("t", parent=styles["Title"], fontName=bf, textColor=DARK_GREEN, fontSize=20, spaceAfter=2)
+    day_style = ParagraphStyle("d", parent=styles["Heading2"], fontName=bf, textColor=colors.white, fontSize=12, spaceBefore=0, spaceAfter=0)
+    h3 = ParagraphStyle("h3", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10, textColor=PETROL, spaceBefore=4)
+    normal = ParagraphStyle("n", parent=styles["Normal"], fontName="Helvetica", fontSize=9)
+    small = ParagraphStyle("s", parent=styles["Normal"], fontName="Helvetica-Oblique", fontSize=8)
+
+    def img_flow(b64, iw=70 * mm):
+        try:
+            raw = b64.split(",", 1)[1] if b64.startswith("data:") else b64
+            data = base64.b64decode(raw)
+            pil = PILImage.open(io.BytesIO(data))
+            pil.load()
+            if pil.mode not in ("RGB", "L"):
+                pil = pil.convert("RGB")
+            w, h = pil.size
+            ratio = (h / w) if w else 0.6
+            out = io.BytesIO()
+            pil.save(out, format="PNG")
+            out.seek(0)
+            ih = min(iw * ratio, 55 * mm)
+            return RLImage(out, width=iw, height=ih)
+        except Exception:
+            return None
+
+    elems = []
+    logo = await _logo_bytes()
+    logo_img = None
+    if logo:
+        try:
+            logo_img = RLImage(logo, width=18 * mm, height=18 * mm)
+        except Exception:
+            logo_img = None
+    title_block = [Paragraph("MICROCICLO SEMANAL", title_style),
+                   Paragraph(f"Leões de Porto Salvo · {m.get('name','')}", small)]
+    htbl = Table([[title_block, logo_img or ""]], colWidths=[None, 22 * mm])
+    htbl.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (1, 0), (1, 0), "RIGHT")]))
+    elems.append(htbl)
+    elems.append(Spacer(1, 6))
+
+    week_order = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    days = m.get("days", {}) or {}
+    any_content = False
+    for day in week_order:
+        trainings = days.get(day, []) or []
+        if not trainings:
+            continue
+        any_content = True
+        day_hdr = Table([[Paragraph(day.upper(), day_style)]], colWidths=[None])
+        day_hdr.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), DARK_GREEN),
+            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        elems.append(Spacer(1, 4))
+        elems.append(day_hdr)
+        for tr in trainings:
+            block = []
+            hdr = f"Treino Nº {tr.get('number','') or '—'}"
+            if tr.get("duration"):
+                hdr += f" · {tr['duration']}"
+            block.append(Paragraph(hdr, h3))
+            comps = ", ".join(tr.get("components", []) or [])
+            if comps:
+                block.append(Paragraph(f"<font color='#0F3B43'><b>Componentes:</b></font> {comps}", small))
+            vtitles = [title_by_id.get(vid) for vid in (tr.get("video_ids", []) or [])]
+            vtitles = [t for t in vtitles if t]
+            if vtitles:
+                block.append(Paragraph("<b>Exercícios:</b> " + ", ".join(vtitles), normal))
+            if tr.get("notes"):
+                block.append(Paragraph(f"<b>Notas:</b> {tr['notes']}", normal))
+            imgs = [img_flow(b) for b in (tr.get("images", []) or [])]
+            imgs = [im for im in imgs if im]
+            for im in imgs:
+                block.append(Spacer(1, 2))
+                block.append(im)
+            block.append(Spacer(1, 6))
+            elems.append(KeepTogether(block))
+    if not any_content:
+        elems.append(Paragraph("Microciclo sem treinos definidos.", small))
+
+    doc.build(elems)
+    buf.seek(0)
+    filename = ("Microciclo " + (m.get("name", "") or "semana").strip()).strip() + ".pdf"
     return StreamingResponse(buf, media_type="application/pdf",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 

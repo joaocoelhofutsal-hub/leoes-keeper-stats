@@ -100,4 +100,9 @@ export const VIDEO_COMPONENTES = [
   "Técnica", "Coordenação", "Agilidade", "Força",
   "Tático", "Velocidade de reação", "Potência", "Jogo de pés",
   "Domínio do espaço", "Velocidade", "Técnica de recurso", "Ativação/Aquecimento",
+  "Treino visual",
+];
+
+export const WEEK_DAYS = [
+  "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo",
 ];

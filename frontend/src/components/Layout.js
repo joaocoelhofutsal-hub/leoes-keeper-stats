@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { ClipboardList, Database, LogOut, BarChart3, Zap, Users, Video, ListPlus, LayoutGrid, LayoutDashboard } from "lucide-react";
+import { ClipboardList, Database, LogOut, BarChart3, Zap, Users, Video, ListPlus, LayoutGrid, LayoutDashboard, CalendarDays, LifeBuoy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Layout({ children }) {
@@ -25,6 +25,8 @@ export function Layout({ children }) {
     { to: "/dados-gerais", label: "Dados Gerais", icon: BarChart3 },
     { to: "/treino", label: "Treino", icon: Zap },
     { to: "/videos", label: "Vídeos", icon: Video },
+    { to: "/microciclo", label: "Microciclo", icon: CalendarDays },
+    { to: "/recurso", label: "Recurso", icon: LifeBuoy },
   ];
 
   const doLogout = async () => { await logout(); navigate("/login"); };
@@ -45,16 +47,16 @@ export function Layout({ children }) {
               const active = location.pathname === n.to;
               const Icon = n.icon;
               return (
-                <Link key={n.to} to={n.to} data-testid={`nav-${n.label.replace(/\s+/g, "-").toLowerCase()}`}
+                <Link key={n.to} to={n.to} data-testid={`nav-${n.label.replace(/\s+/g, "-").toLowerCase()}`} title={n.label}
                   className={cn("flex items-center gap-1.5 px-2 lg:px-2.5 py-2 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap",
                     active ? "bg-white text-[#0C3B1E]" : "text-white/80 hover:bg-white/10")}>
-                  <Icon size={18} /> <span className="hidden xl:inline">{n.label}</span>
+                  <Icon size={18} /> <span className={active ? "inline" : "hidden"}>{n.label}</span>
                 </Link>
               );
             })}
-            <button onClick={doLogout} data-testid="logout-btn"
+            <button onClick={doLogout} data-testid="logout-btn" title="Sair"
               className="flex items-center gap-1.5 px-2 py-2 rounded-lg text-sm font-semibold text-white/80 hover:bg-white/10 whitespace-nowrap">
-              <LogOut size={18} /> <span className="hidden xl:inline">Sair</span>
+              <LogOut size={18} />
             </button>
           </nav>
         </div>

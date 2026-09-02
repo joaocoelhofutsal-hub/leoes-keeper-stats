@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 9 focused on the sub-game topic propagation feature (POST /api/subgames/propagate-topic + SubJogos.js). Backend: 7 pytest tests (login/httpOnly cookie, propagate to all GKs except owner with note=''/evaluation='' and new uuid, metric definition preserved, metric_result computed per GK via GET /api/goalkeepers/{id}/subgames, dedup by name (also case-insensitive), edit-not-propagate, delete-not-propagate, empty name no-op, auth required) -> 7/7 passed. Frontend E2E (Playwright, real UI, admin login): created 'QATEST Ocupacao UI' on GK Bernardo Paçó (verde + Tomada de decisão/Ocupar espaço + nota 'observação X'); it appeared on Daniel Osuji and Gonçalo Portugal WITHOUT note and WITHOUT eval colour dot, with per-GK metric recalculated (Osuji 22 ações / 64%, owner 0/0). Re-creating the same name did not duplicate on other GKs. Editing note/eval on GK2 did not affect GK3. Deleting on GK2 did not remove it on GK3. All 5 requested flows PASS. Test data cleaned surgically (QATEST prefix only) - DB scan confirms zero leftovers.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/subgames/propagate-topic", "issue": "Propagation is a separate non-transactional call after PUT /subgames; if it fails the frontend swallows the error (catch {}) yet still shows the success toast 'Tópico guardado e adicionado aos restantes guarda-redes.' - user can be misled. Suggest surfacing a warning toast on failure."},
+      {"endpoint": "PUT /api/goalkeepers/{id}/subgames", "issue": "Accepts duplicate topic names on the SAME goalkeeper: re-creating 'QATEST Ocupacao UI' on GK1 produced 2 identical cards on GK1 (others correctly stayed at 1). No same-GK name dedup/validation."},
+      {"endpoint": "POST /api/auth/login", "issue": "No brute-force lockout after N failed attempts (playbook item 4) - unlimited login attempts allowed. Pre-existing, not part of this iteration's change."},
+      {"endpoint": "CORS", "issue": "allow_origins defaults to '*' with allow_credentials=True if CORS_ORIGINS is unset - invalid combination for cookie auth; ensure explicit origins remain configured in .env."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration9_propagate.py", "/app/test_reports/pytest/iteration9.xml"],
+  "action_items": [
+    "Optional: block/warn on duplicate topic name within the same goalkeeper + sub-game (currently creates a duplicate card on the origin GK).",
+    "Optional: don't show the success toast when /subgames/propagate-topic fails (error currently silently ignored in SubJogos.js saveTopic)."
+  ],
+  "critical_code_review_comments": [
+    "SubJogos.js saveTopic(): `catch { /* ignore */ }` around propagate-topic hides real failures; log/toast a warning instead.",
+    "propagate_topic() reads and rewrites the whole `subgames` doc per GK (read-modify-write); concurrent saves could lose topics. A $push with an $elemMatch-based dedup or an atomic pipeline update would be safer.",
+    "server.py is 1384 lines - consider splitting into routers (auth, goalkeepers, subgames, reports/PDF)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration9_propagate.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Only temporary topics prefixed 'QATEST' inside existing goalkeepers' subgame_evals; all removed after testing (verified by DB scan). No collections deleted, no real data touched.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "joaocoelhofutsal@gmail.com / leoes2011 (admin)",
+  "context_for_next_testing_agent": "Propagation feature validated end-to-end (backend + UI) in iteration 9; regression suite at /app/backend/tests/test_iteration9_propagate.py cleans up its own QATEST topics via module fixture and preserves other sub-games (get_all/put_subgame helpers). UI notes: sj-gk-select is a native select (use select_option and wait ~2.5s for reload); goalkeepers list takes 1-3s to populate; metric text lives in [data-testid^='sj-metric-']; note is rendered as p.text-xs; eval colour is span.rounded-full.shrink-0. Remaining known gaps: no same-GK duplicate-name validation, no login brute-force lockout.",
+  "rca_of_the_issue": "No defect found in the propagation logic. Duplicate cards on the origin GK come from the frontend pushing the new topic into the local array without a name check, while the backend dedups only for other GKs."
+}
