@@ -43,19 +43,8 @@ export default function Microciclo() {
   const genPdf = async () => { const id = await save(); if (id) window.open(`${API}/microcycles/${id}/pdf`, "_blank"); };
 
   // training dialog
-  const openTr = (day) => setDialog({ day, index: -1, tr: { id: crypto.randomUUID(), number: "", duration: "", components: [], video_ids: [], images: [], notes: "" } });
-  const editTr = (day, index, tr) => setDialog({ day, index, tr: { video_ids: [], components: [], images: [], ...tr } });
-
-  const addImages = async (files) => {
-    const readers = Array.from(files).map((f) => new Promise((res) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result);
-      r.readAsDataURL(f);
-    }));
-    const b64s = await Promise.all(readers);
-    setDialog((d) => ({ ...d, tr: { ...d.tr, images: [...(d.tr.images || []), ...b64s] } }));
-  };
-  const removeImage = (i) => setDialog((d) => ({ ...d, tr: { ...d.tr, images: d.tr.images.filter((_, idx) => idx !== i) } }));
+  const openTr = (day) => setDialog({ day, index: -1, tr: { id: crypto.randomUUID(), number: "", duration: "", components: [], video_ids: [], notes: "" } });
+  const editTr = (day, index, tr) => setDialog({ day, index, tr: { video_ids: [], components: [], ...tr } });
   const toggleComp = (c) => setDialog((d) => ({ ...d, tr: { ...d.tr, components: d.tr.components.includes(c) ? d.tr.components.filter((x) => x !== c) : [...d.tr.components, c] } }));
   const toggleVideo = (id) => setDialog((d) => ({ ...d, tr: { ...d.tr, video_ids: d.tr.video_ids.includes(id) ? d.tr.video_ids.filter((x) => x !== id) : [...d.tr.video_ids, id] } }));
 
@@ -128,7 +117,6 @@ export default function Microciclo() {
                 {(tr.components || []).length > 0 && <div className="flex flex-wrap gap-1">{tr.components.map((c) => <span key={c} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#0C3B1E]/10 text-[#0C3B1E]">{c}</span>)}</div>}
                 {(tr.video_ids || []).length > 0 && <div className="text-[11px] text-muted-foreground">{tr.video_ids.length} exercício(s): {tr.video_ids.map(videoTitle).join(", ")}</div>}
                 {tr.notes && <div className="text-[11px] text-muted-foreground">Notas: {tr.notes}</div>}
-                {(tr.images || []).length > 0 && <div className="flex flex-wrap gap-1 pt-1">{tr.images.map((src, k) => <img key={k} src={src} alt="" className="w-10 h-10 object-cover rounded border border-gray-200" />)}</div>}
               </div>
             ))}
           </section>
@@ -173,20 +161,6 @@ export default function Microciclo() {
                 </div>
               </div>
               <div className="space-y-1"><Label>Notas do treino</Label><Textarea rows={2} value={dialog.tr.notes} data-testid="mc-tr-notes" onChange={(e) => setDialog({ ...dialog, tr: { ...dialog.tr, notes: e.target.value } })} /></div>
-              <div className="space-y-1">
-                <Label>Imagens dos exercícios</Label>
-                <input type="file" accept="image/*" multiple data-testid="mc-tr-images" onChange={(e) => { if (e.target.files?.length) addImages(e.target.files); e.target.value = ""; }} className="block text-sm" />
-                {(dialog.tr.images || []).length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {dialog.tr.images.map((src, i) => (
-                      <div key={i} className="relative">
-                        <img src={src} alt={`ex-${i}`} className="w-20 h-20 object-cover rounded-lg border border-gray-200" />
-                        <button type="button" onClick={() => removeImage(i)} data-testid={`mc-tr-img-del-${i}`} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           )}
           <DialogFooter><Button onClick={saveTr} data-testid="mc-tr-save" className="bg-[#0C3B1E] hover:bg-[#0a3018] text-white">Guardar treino</Button></DialogFooter>

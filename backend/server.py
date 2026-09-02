@@ -242,13 +242,6 @@ class PropagateTopicIn(BaseModel):
     topic: dict = {}
 
 
-class RecursoIn(BaseModel):
-    title: str
-    url: Optional[str] = ""
-    description: Optional[str] = ""
-    components: List[str] = []
-
-
 class MicrocycleIn(BaseModel):
     name: str
     days: dict = {}
@@ -739,7 +732,14 @@ async def delete_reference(rid: str, user: dict = Depends(get_current_user)):
 # ---------- Microcycles (microciclos) ----------
 @api_router.get("/microcycles")
 async def list_microcycles(user: dict = Depends(get_current_user)):
-    rows = await db.microcycles.find().sort("created_at", -1).to_list(500)
+    import re
+    rows = await db.microcycles.find().to_list(500)
+
+    def _key(r):
+        name = (r.get("name", "") or "")
+        return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name)]
+
+    rows.sort(key=_key)
     return [{"id": str(r["_id"]), "name": r.get("name", "")} for r in rows]
 
 
@@ -770,38 +770,6 @@ async def update_microcycle(mid: str, data: MicrocycleIn, user: dict = Depends(g
 @api_router.delete("/microcycles/{mid}")
 async def delete_microcycle(mid: str, user: dict = Depends(get_current_user)):
     await db.microcycles.delete_one({"_id": _as_oid(mid)})
-    return {"ok": True}
-
-
-# ---------- Exercícios de recurso ----------
-@api_router.get("/recurso-exercises")
-async def list_recurso(component: Optional[str] = None, user: dict = Depends(get_current_user)):
-    q = {"components": component} if component else {}
-    rows = await db.recurso_exercises.find(q).sort("created_at", -1).to_list(1000)
-    for r in rows:
-        r["id"] = str(r.pop("_id"))
-    return rows
-
-
-@api_router.post("/recurso-exercises")
-async def create_recurso(data: RecursoIn, user: dict = Depends(get_current_user)):
-    doc = data.model_dump()
-    doc["created_at"] = datetime.now(timezone.utc).isoformat()
-    res = await db.recurso_exercises.insert_one(doc)
-    return {"id": str(res.inserted_id), **data.model_dump()}
-
-
-@api_router.put("/recurso-exercises/{rid}")
-async def update_recurso(rid: str, data: RecursoIn, user: dict = Depends(get_current_user)):
-    res = await db.recurso_exercises.update_one({"_id": _as_oid(rid)}, {"$set": data.model_dump()})
-    if res.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Exercício não encontrado.")
-    return {"id": rid, **data.model_dump()}
-
-
-@api_router.delete("/recurso-exercises/{rid}")
-async def delete_recurso(rid: str, user: dict = Depends(get_current_user)):
-    await db.recurso_exercises.delete_one({"_id": _as_oid(rid)})
     return {"ok": True}
 
 
@@ -1429,7 +1397,6 @@ async def microcycle_pdf(mid: str, request: Request):
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle, Paragraph,
                                     Spacer, Image as RLImage, KeepTogether)
-    from PIL import Image as PILImage
 
     m = await db.microcycles.find_one({"_id": _as_oid(mid)})
     if not m:
@@ -1437,6 +1404,7 @@ async def microcycle_pdf(mid: str, request: Request):
 
     vids = await db.videos.find().to_list(1000)
     title_by_id = {str(v["_id"]): v.get("title", "") for v in vids}
+    desc_by_id = {str(v["_id"]): v.get("description", "") for v in vids}
 
     DARK_GREEN = colors.HexColor("#0C3B1E")
     PETROL = colors.HexColor("#0F3B43")
@@ -1451,24 +1419,6 @@ async def microcycle_pdf(mid: str, request: Request):
     h3 = ParagraphStyle("h3", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10, textColor=PETROL, spaceBefore=4)
     normal = ParagraphStyle("n", parent=styles["Normal"], fontName="Helvetica", fontSize=9)
     small = ParagraphStyle("s", parent=styles["Normal"], fontName="Helvetica-Oblique", fontSize=8)
-
-    def img_flow(b64, iw=70 * mm):
-        try:
-            raw = b64.split(",", 1)[1] if b64.startswith("data:") else b64
-            data = base64.b64decode(raw)
-            pil = PILImage.open(io.BytesIO(data))
-            pil.load()
-            if pil.mode not in ("RGB", "L"):
-                pil = pil.convert("RGB")
-            w, h = pil.size
-            ratio = (h / w) if w else 0.6
-            out = io.BytesIO()
-            pil.save(out, format="PNG")
-            out.seek(0)
-            ih = min(iw * ratio, 55 * mm)
-            return RLImage(out, width=iw, height=ih)
-        except Exception:
-            return None
 
     elems = []
     logo = await _logo_bytes()
@@ -1510,17 +1460,16 @@ async def microcycle_pdf(mid: str, request: Request):
             comps = ", ".join(tr.get("components", []) or [])
             if comps:
                 block.append(Paragraph(f"<font color='#0F3B43'><b>Componentes:</b></font> {comps}", small))
-            vtitles = [title_by_id.get(vid) for vid in (tr.get("video_ids", []) or [])]
-            vtitles = [t for t in vtitles if t]
-            if vtitles:
-                block.append(Paragraph("<b>Exercícios:</b> " + ", ".join(vtitles), normal))
+            for vid in (tr.get("video_ids", []) or []):
+                t = title_by_id.get(vid)
+                if not t:
+                    continue
+                block.append(Paragraph(f"<b>Exercício:</b> {t}", normal))
+                d = desc_by_id.get(vid, "")
+                if d:
+                    block.append(Paragraph(d, small))
             if tr.get("notes"):
                 block.append(Paragraph(f"<b>Notas:</b> {tr['notes']}", normal))
-            imgs = [img_flow(b) for b in (tr.get("images", []) or [])]
-            imgs = [im for im in imgs if im]
-            for im in imgs:
-                block.append(Spacer(1, 2))
-                block.append(im)
             block.append(Spacer(1, 6))
             elems.append(KeepTogether(block))
     if not any_content:

@@ -15,11 +15,11 @@ App web para análise estatística de guarda-redes de futsal do clube Leões de 
 - Sub-jogos (/sub-jogos): 5 sub-jogos; tópicos com nome/avaliação/nota + métrica opcional. Fontes: campos da ação + "Ações ofensivas" (passes/remates/reposições). MÉTRICA CRUZADA (2 filtros em AND). Sucesso = verde + cinzenta. Benchmark = GR de REFERÊNCIA escolhido pelo utilizador (benchmark_gk_id) com os mesmos filtros; sem GR escolhido = sem comparação; se o próprio = "Melhor da competição"; selo mostra delta em p.p. (auto_eval verde/amarelo/vermelho por rácio 0.9/0.7). Coleção subgame_evals; helpers _metric_from/_squad_data/_match_action.
 - Dashboard (/dashboard, página inicial): KPIs do plantel; destaques (Melhor % sucesso — exige ≥3 ações e mostra amostra; Melhor reação); ranking (GR sem ações no fim). Secção "Referências por sub-jogo": GR que o utilizador considera melhores por sub-jogo (podem não ser do plantel), com barra de % sucesso quando é GR do plantel. Endpoints GET /api/insights/squad; GET/POST/DELETE /api/references (coleção references).
 
-## Microciclo (/microciclo): planeamento semanal por dia (WEEK_DAYS). Cada treino: número, duração, componentes (VIDEO_COMPONENTES), exercícios (video_ids), notas e IMAGENS anexadas (base64, guardadas no doc). PDF branded (logo/cores) com dias, treinos, componentes, exercícios, notas e imagens. SEM thumbnails de vídeo (opção do utilizador). Endpoints GET/POST/PUT/DELETE /api/microcycles[/{id}] + GET /api/microcycles/{id}/pdf. Coleção microcycles. img_flow re-encoda imagens via PIL e ignora inválidas (robusto a HEIC/corrompidos).
-## Exercícios de Recurso (/recurso): CRUD com filtro por componente. Endpoints GET/POST/PUT/DELETE /api/recurso-exercises[/{id}]. Coleção recurso_exercises.
-## Navbar: rótulo só no item ativo + tooltip (title) nos restantes — deixou de transbordar a 1920px.
+## Microciclo (/microciclo): planeamento semanal por dia (WEEK_DAYS). Cada treino: número, duração, componentes (VIDEO_COMPONENTES), exercícios (video_ids) e notas. Lista ordenada por ordem NATURAL do nome (Semana 1 → 2 → 12). PDF branded (logo/cores) com dias, treinos, componentes, exercícios (título + descrição do vídeo resolvidos AO VIVO por id — alterar a descrição no módulo Vídeos reflete-se automaticamente) e notas. Sem imagens (removido a pedido). Endpoints GET/POST/PUT/DELETE /api/microcycles[/{id}] + GET /api/microcycles/{id}/pdf. Coleção microcycles.
+## Módulo "Exercícios de Recurso" ELIMINADO (página, rota, navbar e endpoints /api/recurso-exercises removidos).
+## Navbar: rótulo só no item ativo + tooltip (title) nos restantes — não transborda a 1920px.
 
-## Testado: iteration_4..10 (backend ~100%, frontend 100%). Microciclo+Recurso e2e OK (iteration_10); bug PDF-500 com imagem corrompida CORRIGIDO e verificado por curl.
+## Testado: iteration_4..10 (backend ~100%, frontend 100%). Microciclo e2e OK; ordenação natural, PDF com descrições e remoção do Recurso verificados por curl.
 
 ## Backlog / próximos (P1/P2)
 - P1: Filtro por época/datas/competição (dashboard, relatórios, tendências, gráficos, sub-jogos).
