@@ -247,6 +247,22 @@ class MicrocycleIn(BaseModel):
     days: dict = {}
 
 
+class ScoutingIn(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    opponent: Optional[str] = ""
+    competition: Optional[str] = ""
+    round: Optional[str] = ""
+    date: Optional[str] = ""
+    time: Optional[str] = ""
+    venue: Optional[str] = ""
+    home_away: Optional[str] = ""
+    opponent_logo: Optional[str] = ""
+    called_gks: List[dict] = []
+    set_pieces: dict = {}
+    opposition_players: List[dict] = []
+    match_notes: Optional[str] = ""
+
+
 # ---------- Auth routes ----------
 @api_router.post("/auth/register")
 async def register(data: RegisterIn, response: Response):
@@ -769,7 +785,39 @@ async def update_microcycle(mid: str, data: MicrocycleIn, user: dict = Depends(g
 
 @api_router.delete("/microcycles/{mid}")
 async def delete_microcycle(mid: str, user: dict = Depends(get_current_user)):
+    m = await db.microcycles.find_one({"_id": _as_oid(mid)})
+    if m:
+        gids = [ev.get("id") for day in (m.get("days") or {}).values()
+                for ev in (day or []) if ev.get("type") == "jogo" and ev.get("id")]
+        if gids:
+            await db.scouting_plans.delete_many({"game_id": {"$in": gids}})
     await db.microcycles.delete_one({"_id": _as_oid(mid)})
+    return {"ok": True}
+
+
+# ---------- Scouting & Match Plan ----------
+@api_router.get("/scouting/{game_id}")
+async def get_scouting(game_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.scouting_plans.find_one({"game_id": game_id})
+    if not doc:
+        return {"game_id": game_id, "exists": False}
+    doc["id"] = str(doc.pop("_id"))
+    doc["exists"] = True
+    return doc
+
+
+@api_router.put("/scouting/{game_id}")
+async def save_scouting(game_id: str, data: ScoutingIn, user: dict = Depends(get_current_user)):
+    payload = data.model_dump()
+    payload["game_id"] = game_id
+    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.scouting_plans.update_one({"game_id": game_id}, {"$set": payload}, upsert=True)
+    return {"ok": True}
+
+
+@api_router.delete("/scouting/{game_id}")
+async def delete_scouting(game_id: str, user: dict = Depends(get_current_user)):
+    await db.scouting_plans.delete_one({"game_id": game_id})
     return {"ok": True}
 
 
@@ -1478,6 +1526,262 @@ async def microcycle_pdf(mid: str, request: Request):
     doc.build(elems)
     buf.seek(0)
     filename = ("Microciclo " + (m.get("name", "") or "semana").strip()).strip() + ".pdf"
+    return StreamingResponse(buf, media_type="application/pdf",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@api_router.get("/scouting/{game_id}/pdf")
+async def scouting_pdf(game_id: str, request: Request):
+    await get_current_user(request)
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle, Paragraph,
+                                    Spacer, Image as RLImage, PageBreak, KeepTogether)
+    from PIL import Image as PILImage
+
+    s = await db.scouting_plans.find_one({"game_id": game_id})
+    if not s:
+        raise HTTPException(status_code=404, detail="Scouting não encontrado. Cria e guarda primeiro.")
+
+    DARK = colors.HexColor("#0C3B1E")
+    PETROL = colors.HexColor("#0F3B43")
+    GOLD = colors.HexColor("#C8A24B")
+    LGREY = colors.HexColor("#F3F4F6")
+    MGREY = colors.HexColor("#8A8F98")
+
+    def esc(t):
+        return (t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def safe_img(b64, w, h):
+        if not b64:
+            return None
+        try:
+            raw = b64.split(",", 1)[1] if b64.startswith("data:") else b64
+            pil = PILImage.open(io.BytesIO(base64.b64decode(raw)))
+            pil.load()
+            if pil.mode not in ("RGB", "L"):
+                pil = pil.convert("RGB")
+            out = io.BytesIO()
+            pil.save(out, format="PNG")
+            out.seek(0)
+            return RLImage(out, width=w, height=h)
+        except Exception:
+            return None
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=13 * mm, bottomMargin=13 * mm,
+                            leftMargin=13 * mm, rightMargin=13 * mm)
+    styles = getSampleStyleSheet()
+    bf = "Helvetica-BoldOblique"
+    white_title = ParagraphStyle("wt", parent=styles["Title"], fontName=bf, textColor=colors.white, fontSize=20, spaceAfter=0, alignment=0)
+    white_sub = ParagraphStyle("ws", parent=styles["Normal"], fontName="Helvetica", textColor=colors.HexColor("#CFE3D6"), fontSize=8, alignment=0)
+    sec = ParagraphStyle("sec", parent=styles["Heading2"], fontName=bf, textColor=colors.white, fontSize=13)
+    opp_name = ParagraphStyle("opp", parent=styles["Title"], fontName=bf, textColor=DARK, fontSize=24, spaceAfter=0, alignment=0)
+    normal = ParagraphStyle("n", parent=styles["Normal"], fontName="Helvetica", fontSize=9)
+    gkname = ParagraphStyle("gk", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=8, alignment=1, textColor=DARK)
+    small = ParagraphStyle("s", parent=styles["Normal"], fontName="Helvetica-Oblique", fontSize=8, textColor=MGREY)
+
+    def section_title(text):
+        t = Table([[Paragraph(esc(text), sec)]], colWidths=[doc.width])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), DARK),
+            ("LINEBELOW", (0, 0), (-1, -1), 2.5, GOLD),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]))
+        return t
+
+    elems = []
+    ha = (s.get("home_away") or "").upper()
+
+    # ---- Header band ----
+    club_logo_b = await _logo_bytes()
+    club_img = None
+    if club_logo_b:
+        try:
+            club_img = RLImage(club_logo_b, width=16 * mm, height=16 * mm)
+        except Exception:
+            club_img = None
+    band = Table([[[Paragraph("SCOUTING &amp; MATCH PLAN", white_title),
+                    Paragraph("Leões de Porto Salvo · Guarda-Redes", white_sub)], club_img or ""]],
+                 colWidths=[None, 20 * mm])
+    band.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), DARK),
+        ("LINEBELOW", (0, 0), (-1, -1), 3, GOLD),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("LEFTPADDING", (0, 0), (0, 0), 12), ("TOPPADDING", (0, 0), (-1, -1), 12), ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (1, 0), (1, 0), 12),
+    ]))
+    elems.append(band)
+    elems.append(Spacer(1, 8))
+
+    # ---- Opponent block ----
+    opp_logo = safe_img(s.get("opponent_logo"), 26 * mm, 26 * mm)
+    ha_badge = ""
+    if ha:
+        ha_badge = Table([[Paragraph(f"<font color='white'><b>{esc(ha)}</b></font>", normal)]], colWidths=[24 * mm])
+        ha_badge.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), GOLD if ha == "CASA" else PETROL),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+    opp_right = [Paragraph("<font size=8 color='#8A8F98'>ADVERSÁRIO</font>", normal),
+                 Paragraph(esc(s.get("opponent") or "—"), opp_name)]
+    if ha_badge:
+        opp_right.append(Spacer(1, 3))
+        opp_right.append(ha_badge)
+    opp_block = Table([[opp_logo or "", opp_right]], colWidths=[30 * mm, None])
+    opp_block.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND", (0, 0), (-1, -1), LGREY),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    ]))
+    elems.append(opp_block)
+    elems.append(Spacer(1, 8))
+
+    # ---- Info grid ----
+    def chip(label, value):
+        return Paragraph(f"<font size=7 color='#8A8F98'>{esc(label.upper())}</font><br/><font size=11><b>{esc(value or '—')}</b></font>", normal)
+    info = [
+        [chip("Competição", s.get("competition")), chip("Jornada", s.get("round")), chip("Data", s.get("date"))],
+        [chip("Hora", s.get("time")), chip("Local", s.get("venue")), chip("Casa/Fora", s.get("home_away"))],
+    ]
+    it = Table(info, colWidths=[doc.width / 3] * 3)
+    it.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("LEFTPADDING", (0, 0), (-1, -1), 9),
+    ]))
+    elems.append(it)
+    elems.append(Spacer(1, 10))
+
+    # ---- Called GKs ----
+    elems.append(section_title("GUARDA-REDES CONVOCADOS"))
+    elems.append(Spacer(1, 6))
+    called = [g for g in (s.get("called_gks") or []) if g.get("name")]
+    if called:
+        cells = []
+        for g in called:
+            ph = safe_img(g.get("photo"), 20 * mm, 20 * mm)
+            if not ph:
+                ph = Table([[Paragraph("<font color='white'><b>GR</b></font>", gkname)]], colWidths=[20 * mm], rowHeights=[20 * mm])
+                ph.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), PETROL), ("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+            inner = Table([[ph], [Paragraph(esc(g.get("name", "")), gkname)]], colWidths=[26 * mm])
+            inner.setStyle(TableStyle([
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 1, GOLD),
+                ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            cells.append(inner)
+        rows = [cells[i:i + 4] for i in range(0, len(cells), 4)]
+        for r in rows:
+            while len(r) < 4:
+                r.append("")
+        grid = Table(rows, colWidths=[doc.width / 4] * 4)
+        grid.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                                  ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4)]))
+        elems.append(grid)
+    else:
+        elems.append(Paragraph("Sem guarda-redes convocados.", small))
+
+    # ---- Page 2: Set-piece plan ----
+    elems.append(PageBreak())
+    elems.append(section_title("GOALKEEPER SET-PIECE PLAN"))
+    elems.append(Spacer(1, 8))
+    photo_by_name = {g.get("name"): g.get("photo") for g in called}
+    sp = s.get("set_pieces") or {}
+    sp_defs = [("penalti", "PENÁLTI"), ("livre", "LIVRE"), ("livre10", "LIVRE DE 10 METROS")]
+    for key, label in sp_defs:
+        d = sp.get(key) or {}
+        campo = d.get("mode") == "campo"
+        gkn = d.get("gk") or ""
+        if campo:
+            val_par = Paragraph("<font color='#0C3B1E'><b>GR QUE ESTIVER EM CAMPO</b></font>", ParagraphStyle("v", parent=normal, fontSize=13))
+            ph = ""
+        else:
+            val_par = Paragraph(f"<b>{esc(gkn or '—')}</b>", ParagraphStyle("v", parent=normal, fontSize=15, textColor=DARK))
+            ph = safe_img(photo_by_name.get(gkn), 16 * mm, 16 * mm) or ""
+        card = Table([[Paragraph(f"<font color='white'><b>{esc(label)}</b></font>", ParagraphStyle("l", parent=normal, fontSize=12, textColor=colors.white)),
+                       val_par, ph]], colWidths=[52 * mm, None, 18 * mm])
+        card.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, 0), DARK),
+            ("BACKGROUND", (1, 0), (-1, -1), colors.white if not campo else colors.HexColor("#EAF3EC")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
+            ("LINEAFTER", (0, 0), (0, 0), 3, GOLD),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (2, 0), (2, 0), "RIGHT"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 12), ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 12), ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ]))
+        elems.append(card)
+        elems.append(Spacer(1, 8))
+
+    # ---- Page 3+: Opposition key players ----
+    elems.append(PageBreak())
+    elems.append(section_title("OPPOSITION KEY PLAYERS"))
+    elems.append(Spacer(1, 8))
+    players = s.get("opposition_players") or []
+    if players:
+        pcards = []
+        for p in players:
+            ph = safe_img(p.get("photo"), 24 * mm, 24 * mm)
+            if not ph:
+                ph = Table([[Paragraph("<font color='white' size=7><b>SEM FOTO</b></font>", normal)]], colWidths=[24 * mm], rowHeights=[24 * mm])
+                ph.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), MGREY), ("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+            num = p.get("number") or ""
+            head = f"<font color='#C8A24B'><b>#{esc(str(num))}</b></font> <b>{esc(p.get('name') or '—')}</b>"
+            meta = " · ".join([x for x in [esc(p.get("position") or ""), (("Pé " + esc(p.get("foot"))) if p.get("foot") else "")] if x])
+            info_par = [Paragraph(head, ParagraphStyle("ph", parent=normal, fontSize=11)),
+                        Paragraph(meta, small)]
+            if p.get("notes"):
+                info_par.append(Spacer(1, 3))
+                info_par.append(Paragraph(esc(p.get("notes")), normal))
+            card = Table([[ph, info_par]], colWidths=[27 * mm, None])
+            card.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
+                ("LINEBEFORE", (0, 0), (0, 0), 3, GOLD),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]))
+            pcards.append(card)
+        rows = [pcards[i:i + 2] for i in range(0, len(pcards), 2)]
+        for r in rows:
+            while len(r) < 2:
+                r.append("")
+            grid = Table([r], colWidths=[doc.width / 2] * 2)
+            grid.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
+                                      ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                                      ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+            elems.append(KeepTogether(grid))
+    else:
+        elems.append(Paragraph("Sem jogadores adversários adicionados.", small))
+
+    # ---- Last page: Match notes ----
+    elems.append(PageBreak())
+    elems.append(section_title("MATCH NOTES"))
+    elems.append(Spacer(1, 8))
+    notes = s.get("match_notes") or ""
+    if notes.strip():
+        for para in notes.split("\n"):
+            if para.strip():
+                elems.append(Paragraph(esc(para), ParagraphStyle("mn", parent=normal, fontSize=10, spaceAfter=5, leading=14)))
+            else:
+                elems.append(Spacer(1, 5))
+    else:
+        elems.append(Paragraph("Sem notas.", small))
+
+    doc.build(elems)
+    buf.seek(0)
+    opp = (s.get("opponent") or "adversario").strip()
+    dt = (s.get("date") or "").strip()
+    filename = f"Scouting & Match Plan - {opp}" + (f" - {dt}" if dt else "") + ".pdf"
     return StreamingResponse(buf, media_type="application/pdf",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 

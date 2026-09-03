@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 11: full e2e test of the new Microciclo JOGOS + Scouting & Match Plan feature (backend pytest 19/19 + Playwright UI e2e). Backend: auth/cookies, microcycle CRUD with treinos (regression), games as freeform day events, scouting GET/PUT/PDF, auth guards, 404 paths, upsert-on-edit. Frontend: login -> microciclo -> create treino + jogo same day -> edit/delete jogo -> save -> reopen (persistence) -> microcycle PDF 200 pdf -> Scouting & Match Plan navigation -> 3 default GKs pre-selected -> GK toggle + manual GK -> set-piece campo/dropdown -> 2 opposition players + delete -> match notes -> save -> reload persistence -> scouting PDF 200 pdf (947KB) -> edit + regenerate. All primary flows PASS. Only 2 minor issues found. All test data cleaned up; real data (microciclos 1-6, subgame_evals, reports) untouched.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/login", "issue": "No brute-force protection / account lockout: 6+ consecutive wrong-password attempts all return 401 with no rate limiting or lockout (playbook item 4 not implemented)."},
+      {"endpoint": "DELETE /api/microcycles/{id}", "issue": "Deleting a microcycle (or removing a jogo from a day) leaves an orphan document in scouting_plans forever - no cascade and no DELETE /api/scouting/{game_id} endpoint. Confirmed: after deleting the test microcycle the scouting doc remained in Mongo (had to be removed manually). Storage grows unbounded because each plan can embed base64 logo + player photos (~950KB PDF payloads)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ScoutingPlan set-piece", "issue": "Stale GK reference: if a GK is assigned to a set-piece (e.g. Penálti) and is then de-selected from 'Guarda-redes convocados', the <select> renders blank but form.set_pieces[key].gk keeps the removed name in state, so a non-convocado GK can be saved/printed in the PDF. Should be cleared (or blocked) when the GK is removed.", "selector": "[data-testid=\"sp-setpiece-select-penalti\"]", "priority": "MINOR"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Scouting & Match Plan", "issues": ["Logo and player photo uploads use raw unstyled native file inputs ('Choose File / No file chosen'), inconsistent with the rest of the styled UI.", "Data/Hora use the browser-native date/time pickers (Input type=date/time) rather than the shadcn calendar - consistent with existing Microciclo dialog, but still a native-picker inconsistency.", "Manually-added GKs render as a card mixed into the DB GK grid with no 'manual' marker other than the trash icon."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11_scouting.py",
+    "/app/test_reports/pytest/iteration11.xml"
+  ],
+  "action_items": [
+    "Clear set_pieces[key].gk when that GK is removed from called_gks in ScoutingPlan.js (toggleGk/removeCalled).",
+    "Optional: add scouting cleanup (cascade delete of scouting_plans when a jogo/microciclo is removed, or a DELETE /api/scouting/{game_id} endpoint) to avoid orphan documents.",
+    "Optional (security): add login attempt throttling/lockout - currently unlimited wrong-password attempts.",
+    "Optional (polish): style the file inputs for opponent logo / player photos.",
+    "Housekeeping: a microcycle named 'QA Semana Scouting' created during the main agent's smoke test is still in the DB - delete it if it was not meant to stay."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/server.py is 1818 lines - the 4 PDF builders (report, microcycle, scouting, etc.) duplicate large amounts of reportlab setup (DARK/PETROL/GOLD colors, esc(), safe_img() are re-declared per endpoint). Extract to /app/backend/pdf/ modules and share helpers (DRY, >10 line duplicated blocks).",
+    "ScoutingIn uses extra='allow', so any client field is persisted unvalidated into scouting_plans; consider restricting or validating nested called_gks/opposition_players/set_pieces shapes (currently List[dict]/dict).",
+    "PUT /api/scouting/{game_id} has no size guard on opponent_logo / player photo base64 payloads (frontend resizes client-side only) - a direct API call can store arbitrarily large images.",
+    "GET /api/scouting/{game_id} returns the raw Mongo doc after popping _id; safe today, but prefer an explicit response projection so future internal fields are not leaked.",
+    "Set-piece 'mode' and player 'foot' are free-form strings; an Enum/Literal would prevent invalid values reaching the PDF renderer."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration11_scouting.py"],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100% of tested flows (1 minor state bug found in edge case)"},
+  "seed_data_creation": "Created and then removed: microcycles named TEST_IT11_* and TEST_QA11_semana, scouting_plans with game_id prefix TEST_IT11_* plus one UI-created plan (85783ca1-...). Verified DB afterwards: microcycles left = ['1'..'6','QA Semana Scouting'], scouting_plans = 0. No generic delete_many({}) was used.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "joaocoelhofutsal@gmail.com / leoes2011 (admin, from /app/memory/test_credentials.md) - login works, httpOnly access_token+refresh_token cookies set, bcrypt hash verified as $2b$",
+  "context_for_next_testing_agent": "Run backend suite with `cd /app/backend && python -m pytest tests/test_iteration11_scouting.py -q` (pytest.ini forces -n 2 --dist loadscope, so session fixtures are PER WORKER - never share created-ids across test classes). The preview edge proxy answers OPTIONS preflight itself and rewrites Access-Control-Allow-Origin to '*'; the app itself correctly echoes the explicit origin (verified via curl on localhost:8001) - do not report that as a CORS bug. There is no DELETE endpoint for scouting: clean test plans directly from the scouting_plans collection by game_id. Verified working: treinos regression, jogo CRUD in the day cards, scouting navigation with location.state prefill, 3 default GKs matched from DB (with photos), manual GK add, set-piece campo/dropdown, opposition players CRUD, match notes, persistence after reload, and both PDFs (microcycle + scouting, independent).",
+  "rca_of_the_issue": "Stale set-piece GK: toggleGk/removeCalled in /app/frontend/src/pages/ScoutingPlan.js only mutate called_gks and never reconcile form.set_pieces; the <select> value simply no longer matches an option so it renders empty while state (and therefore the PUT payload and PDF) still contains the removed GK name. Orphan scouting docs: scouting_plans are keyed by the client-generated game UUID and no delete path exists on either the microcycle delete endpoint or the frontend game removal."
+}

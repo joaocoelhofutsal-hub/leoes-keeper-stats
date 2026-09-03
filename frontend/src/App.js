@@ -14,6 +14,7 @@ import Videos from "@/pages/Videos";
 import AcoesSoltas from "@/pages/AcoesSoltas";
 import SubJogos from "@/pages/SubJogos";
 import Microciclo from "@/pages/Microciclo";
+import ScoutingPlan from "@/pages/ScoutingPlan";
 
 function Protected({ children }) {
   const { user, ready } = useAuth();
@@ -46,6 +47,7 @@ function App() {
             <Route path="/acoes" element={<Protected><AcoesSoltas /></Protected>} />
             <Route path="/sub-jogos" element={<Protected><SubJogos /></Protected>} />
             <Route path="/microciclo" element={<Protected><Microciclo /></Protected>} />
+            <Route path="/microciclo/scouting/:gameId" element={<Protected><ScoutingPlan /></Protected>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
           <Toaster position="bottom-right" richColors />

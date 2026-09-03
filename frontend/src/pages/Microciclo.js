@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api, { formatApiErrorDetail } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,16 +10,18 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { WEEK_DAYS, VIDEO_COMPONENTES } from "@/lib/constants";
-import { CalendarDays, Plus, Pencil, Trash2, FileText, ArrowLeft, Save } from "lucide-react";
+import { CalendarDays, Plus, Pencil, Trash2, FileText, ArrowLeft, Save, Dumbbell, Trophy, ClipboardList } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const emptyDays = () => Object.fromEntries(WEEK_DAYS.map((d) => [d, []]));
 
 export default function Microciclo() {
+  const navigate = useNavigate();
   const [list, setList] = useState([]);
   const [videos, setVideos] = useState([]);
   const [current, setCurrent] = useState(null); // {id, name, days}
-  const [dialog, setDialog] = useState(null); // {day, index, tr}
+  const [dialog, setDialog] = useState(null); // training dialog {day, index, tr}
+  const [gameDialog, setGameDialog] = useState(null); // game dialog {day, index, game}
 
   const loadList = () => api.get("/microcycles").then((r) => setList(r.data)).catch(() => {});
   useEffect(() => { loadList(); api.get("/videos").then((r) => setVideos(r.data)).catch(() => {}); }, []);
@@ -42,20 +45,34 @@ export default function Microciclo() {
 
   const genPdf = async () => { const id = await save(); if (id) window.open(`${API}/microcycles/${id}/pdf`, "_blank"); };
 
-  // training dialog
-  const openTr = (day) => setDialog({ day, index: -1, tr: { id: crypto.randomUUID(), number: "", duration: "", components: [], video_ids: [], notes: "" } });
+  // ---- training dialog ----
+  const openTr = (day) => setDialog({ day, index: -1, tr: { id: crypto.randomUUID(), type: "treino", number: "", duration: "", components: [], video_ids: [], notes: "" } });
   const editTr = (day, index, tr) => setDialog({ day, index, tr: { video_ids: [], components: [], ...tr } });
   const toggleComp = (c) => setDialog((d) => ({ ...d, tr: { ...d.tr, components: d.tr.components.includes(c) ? d.tr.components.filter((x) => x !== c) : [...d.tr.components, c] } }));
   const toggleVideo = (id) => setDialog((d) => ({ ...d, tr: { ...d.tr, video_ids: d.tr.video_ids.includes(id) ? d.tr.video_ids.filter((x) => x !== id) : [...d.tr.video_ids, id] } }));
 
-  const saveTr = () => {
-    const { day, index, tr } = dialog;
+  const saveEvent = (day, index, ev) => {
     const next = { ...current.days, [day]: [...(current.days[day] || [])] };
-    if (index === -1) next[day].push(tr); else next[day][index] = tr;
+    if (index === -1) next[day].push(ev); else next[day][index] = ev;
     setCurrent((c) => ({ ...c, days: next }));
-    setDialog(null);
   };
-  const removeTr = (day, index) => setCurrent((c) => ({ ...c, days: { ...c.days, [day]: c.days[day].filter((_, i) => i !== index) } }));
+  const saveTr = () => { saveEvent(dialog.day, dialog.index, dialog.tr); setDialog(null); };
+  const removeEv = (day, index) => setCurrent((c) => ({ ...c, days: { ...c.days, [day]: c.days[day].filter((_, i) => i !== index) } }));
+  const removeGame = async (day, index, ev) => { if (ev?.id) { try { await api.delete(`/scouting/${ev.id}`); } catch { /* no plan */ } } removeEv(day, index); };
+
+  // ---- game dialog ----
+  const openGame = (day) => setGameDialog({ day, index: -1, game: { id: crypto.randomUUID(), type: "jogo", opponent: "", competition: "", round: "", date: "", time: "", venue: "", home_away: "Casa" } });
+  const editGame = (day, index, game) => setGameDialog({ day, index, game: { ...game } });
+  const saveGame = () => {
+    if (!gameDialog.game.opponent.trim()) { toast.error("Indica o adversário."); return; }
+    saveEvent(gameDialog.day, gameDialog.index, gameDialog.game);
+    setGameDialog(null);
+  };
+
+  const openScouting = async (game) => {
+    const id = await save();
+    if (id) navigate(`/microciclo/scouting/${game.id}`, { state: { game } });
+  };
 
   const matchVideos = dialog ? videos.filter((v) => dialog.tr.components.length === 0 || (v.components || []).some((c) => dialog.tr.components.includes(c))) : [];
   const videoTitle = (id) => videos.find((v) => v.id === id)?.title || "vídeo";
@@ -101,28 +118,48 @@ export default function Microciclo() {
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
         {WEEK_DAYS.map((day) => (
           <section key={day} data-testid={`mc-day-${day.toLowerCase()}`} className="rounded-2xl border-2 border-[#0F3B43]/25 p-3 bg-white space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-1">
               <h2 className="font-cond text-lg font-extrabold uppercase text-[#0F3B43]">{day}</h2>
-              <Button size="sm" variant="outline" onClick={() => openTr(day)} data-testid={`mc-add-${day.toLowerCase()}`} className="border-[#0C3B1E] text-[#0C3B1E] h-8"><Plus size={14} className="mr-1" /> Treino</Button>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" onClick={() => openTr(day)} data-testid={`mc-add-${day.toLowerCase()}`} className="border-[#0C3B1E] text-[#0C3B1E] h-8 px-2"><Dumbbell size={13} className="mr-1" /> Treino</Button>
+                <Button size="sm" variant="outline" onClick={() => openGame(day)} data-testid={`mc-add-game-${day.toLowerCase()}`} className="border-[#C8A24B] text-[#9a7b2c] h-8 px-2"><Trophy size={13} className="mr-1" /> Jogo</Button>
+              </div>
             </div>
             {(current.days[day] || []).length === 0 ? (
-              <div className="text-xs text-muted-foreground">Sem treinos.</div>
-            ) : (current.days[day] || []).map((tr, i) => (
-              <div key={tr.id || i} data-testid={`mc-tr-${tr.id}`} className="rounded-lg border border-gray-200 p-2.5 bg-gray-50 space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sm flex-1">Treino Nº {tr.number || "—"} {tr.duration ? `· ${tr.duration}` : ""}</span>
-                  <button onClick={() => editTr(day, i, tr)} data-testid={`mc-edit-tr-${tr.id}`} className="text-[#0F3B43]"><Pencil size={14} /></button>
-                  <button onClick={() => removeTr(day, i)} data-testid={`mc-del-tr-${tr.id}`} className="text-red-500 hover:text-red-700"><Trash2 size={14} /></button>
+              <div className="text-xs text-muted-foreground">Sem eventos.</div>
+            ) : (current.days[day] || []).map((ev, i) => (
+              ev.type === "jogo" ? (
+                <div key={ev.id || i} data-testid={`mc-game-${ev.id}`} className="rounded-lg border-2 border-[#C8A24B]/60 p-2.5 bg-[#fbf7ec] space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#C8A24B] text-white"><Trophy size={11} /> Jogo</span>
+                    <span className="font-cond font-extrabold uppercase text-[#0C3B1E] text-sm flex-1 leading-tight">vs {ev.opponent || "—"}</span>
+                    <button onClick={() => editGame(day, i, ev)} data-testid={`mc-edit-game-${ev.id}`} className="text-[#0F3B43]"><Pencil size={14} /></button>
+                    <button onClick={() => removeGame(day, i, ev)} data-testid={`mc-del-game-${ev.id}`} className="text-red-500 hover:text-red-700"><Trash2 size={14} /></button>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {[ev.competition, ev.round && `J${ev.round}`, ev.home_away].filter(Boolean).join(" · ")}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{[ev.date, ev.time, ev.venue].filter(Boolean).join(" · ")}</div>
+                  <Button size="sm" onClick={() => openScouting(ev)} data-testid={`mc-scouting-${ev.id}`} className="w-full mt-1 h-8 bg-[#0C3B1E] hover:bg-[#0a3018] text-white text-xs"><ClipboardList size={13} className="mr-1" /> Scouting &amp; Match Plan</Button>
                 </div>
-                {(tr.components || []).length > 0 && <div className="flex flex-wrap gap-1">{tr.components.map((c) => <span key={c} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#0C3B1E]/10 text-[#0C3B1E]">{c}</span>)}</div>}
-                {(tr.video_ids || []).length > 0 && <div className="text-[11px] text-muted-foreground">{tr.video_ids.length} exercício(s): {tr.video_ids.map(videoTitle).join(", ")}</div>}
-                {tr.notes && <div className="text-[11px] text-muted-foreground">Notas: {tr.notes}</div>}
-              </div>
+              ) : (
+                <div key={ev.id || i} data-testid={`mc-tr-${ev.id}`} className="rounded-lg border border-gray-200 p-2.5 bg-gray-50 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm flex-1">Treino Nº {ev.number || "—"} {ev.duration ? `· ${ev.duration}` : ""}</span>
+                    <button onClick={() => editTr(day, i, ev)} data-testid={`mc-edit-tr-${ev.id}`} className="text-[#0F3B43]"><Pencil size={14} /></button>
+                    <button onClick={() => removeEv(day, i)} data-testid={`mc-del-tr-${ev.id}`} className="text-red-500 hover:text-red-700"><Trash2 size={14} /></button>
+                  </div>
+                  {(ev.components || []).length > 0 && <div className="flex flex-wrap gap-1">{ev.components.map((c) => <span key={c} className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[#0C3B1E]/10 text-[#0C3B1E]">{c}</span>)}</div>}
+                  {(ev.video_ids || []).length > 0 && <div className="text-[11px] text-muted-foreground">{ev.video_ids.length} exercício(s): {ev.video_ids.map(videoTitle).join(", ")}</div>}
+                  {ev.notes && <div className="text-[11px] text-muted-foreground">Notas: {ev.notes}</div>}
+                </div>
+              )
             ))}
           </section>
         ))}
       </div>
 
+      {/* Training dialog */}
       <Dialog open={!!dialog} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent data-testid="mc-tr-dialog">
           <DialogHeader>
@@ -164,6 +201,39 @@ export default function Microciclo() {
             </div>
           )}
           <DialogFooter><Button onClick={saveTr} data-testid="mc-tr-save" className="bg-[#0C3B1E] hover:bg-[#0a3018] text-white">Guardar treino</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Game dialog */}
+      <Dialog open={!!gameDialog} onOpenChange={(o) => !o && setGameDialog(null)}>
+        <DialogContent data-testid="mc-game-dialog">
+          <DialogHeader>
+            <DialogTitle>{gameDialog?.index === -1 ? "Novo jogo" : "Editar jogo"} · {gameDialog?.day}</DialogTitle>
+            <DialogDescription>Define os dados do jogo. Depois de guardar o microciclo podes criar o Scouting & Match Plan.</DialogDescription>
+          </DialogHeader>
+          {gameDialog && (
+            <div className="space-y-3">
+              <div className="space-y-1"><Label>Adversário</Label><Input value={gameDialog.game.opponent} data-testid="mc-game-opponent" onChange={(e) => setGameDialog({ ...gameDialog, game: { ...gameDialog.game, opponent: e.target.value } })} placeholder="Ex.: Sporting CP" /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1"><Label>Competição</Label><Input value={gameDialog.game.competition} data-testid="mc-game-competition" onChange={(e) => setGameDialog({ ...gameDialog, game: { ...gameDialog.game, competition: e.target.value } })} /></div>
+                <div className="space-y-1"><Label>Jornada</Label><Input value={gameDialog.game.round} data-testid="mc-game-round" onChange={(e) => setGameDialog({ ...gameDialog, game: { ...gameDialog.game, round: e.target.value } })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1"><Label>Data</Label><Input type="date" value={gameDialog.game.date} data-testid="mc-game-date" onChange={(e) => setGameDialog({ ...gameDialog, game: { ...gameDialog.game, date: e.target.value } })} /></div>
+                <div className="space-y-1"><Label>Hora</Label><Input type="time" value={gameDialog.game.time} data-testid="mc-game-time" onChange={(e) => setGameDialog({ ...gameDialog, game: { ...gameDialog.game, time: e.target.value } })} /></div>
+              </div>
+              <div className="space-y-1"><Label>Local</Label><Input value={gameDialog.game.venue} data-testid="mc-game-venue" onChange={(e) => setGameDialog({ ...gameDialog, game: { ...gameDialog.game, venue: e.target.value } })} placeholder="Ex.: Pavilhão Municipal" /></div>
+              <div className="space-y-1">
+                <Label>Casa / Fora</Label>
+                <div className="flex gap-2">
+                  {["Casa", "Fora"].map((v) => (
+                    <button key={v} type="button" data-testid={`mc-game-ha-${v.toLowerCase()}`} onClick={() => setGameDialog({ ...gameDialog, game: { ...gameDialog.game, home_away: v } })} className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border-2 ${gameDialog.game.home_away === v ? "bg-[#0C3B1E] text-white border-[#0C3B1E]" : "bg-white text-[#0C3B1E] border-gray-200"}`}>{v}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter><Button onClick={saveGame} data-testid="mc-game-save" className="bg-[#0C3B1E] hover:bg-[#0a3018] text-white">Guardar jogo</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
